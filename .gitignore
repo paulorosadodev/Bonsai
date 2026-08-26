@@ -1,0 +1,35 @@
+# Dependências
+/node_modules
+/.pnp
+.pnp.js
+
+# Produção e Build do Next.js
+/.next/
+/out/
+/build
+
+# Logs de Erro e Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun-debug.log*
+bun.lockb
+
+# Variáveis de ambiente locais
+.env
+.env*.local
+
+# Versões e cache do TypeScript / Next
+next-env.d.ts
+*.tsbuildinfo
+
+# Editor e Sistema Operacional
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Vercel
+.vercel

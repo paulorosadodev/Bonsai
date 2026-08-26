@@ -73,6 +73,10 @@ Esta escolha evita o padrão genérico de “grandes cards com métricas e gradi
 - Valores devem ser exibidos em BRL, por exemplo `R$ 1.250,27`, sempre alinhados para leitura rápida.
 - Gráficos devem ter legenda clara, alternativa textual para os dados essenciais e cores distinguíveis no tema escuro.
 - Formulários devem revelar campos progressivamente: ao selecionar cartão, exibir parcelamento; ao selecionar uma categoria, exibir somente tags específicas compatíveis.
+- O formulário exibe o toggle **Recorrente** somente para PIX e cartão à vista. Ao escolher mais de uma parcela, o toggle é desligado e a interface informa que a compra passou a ser avulsa.
+- Ao editar uma recorrência, a interface deve explicar a partir de qual ocorrência as mudanças terão efeito, sem sugerir que meses anteriores serão alterados.
+- Lista e Fatura exibem selo e ícone **Recorrente** nas ocorrências pertencentes a uma série.
+- Resumo, Fatura e Lista exibem o aviso discreto **Inclui recorrências previstas** quando o período contém projeções futuras.
 - A tag `Reembolso` deve permanecer reconhecível mesmo quando o toggle que a inclui/exclui do Dashboard estiver ativo.
 
 ## Feedback visual responsivo
@@ -85,7 +89,8 @@ Cada interação deve comunicar estado imediatamente:
 - erro de validação: mensagem próxima ao campo e instrução objetiva para corrigir;
 - erro de servidor: mensagem clara com ação de tentar novamente, sem expor detalhes técnicos;
 - lista vazia: explicar o que ainda não existe e oferecer “Adicionar transação”;
-- exclusão: pedir confirmação explícita antes de remover uma transação.
+- exclusão avulsa: pedir confirmação explícita antes de remover uma transação;
+- exclusão recorrente: explicitar a ação **Excluir esta e as próximas recorrências** e informar que o histórico anterior será preservado.
 
 Animações devem ser curtas e funcionais: abertura do formulário, confirmação de inclusão e atualização de um valor. Elas não podem atrasar a tarefa nem ocultar o estado real do salvamento.
 

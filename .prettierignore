@@ -1,0 +1,10 @@
+.agents
+.cursor
+.next
+node_modules
+bun.lock
+.env*
+docs/requisitos-visuais.md
+docs/seguranca
+docs/user-stories
+skills-lock.json

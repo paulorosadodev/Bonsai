@@ -6,8 +6,9 @@
 
 - Categorias permitidas: Contas Fixas, Higiene, Saúde, Alimentação, Transporte, Lazer, Vestuário, Pessoal e Presente.
 - Tags aplicáveis a qualquer categoria: Reembolso, Família e Amigos.
-- Tags específicas: Contas Fixas (Celular, Energia, Casa); Saúde (Remédio, Médico); Alimentação (Restaurante, Padaria/Supermercado, Lanche); Transporte (Uber, Viagem); Lazer (Assinatura, Ingressos, Outro).
+- Tags específicas: Contas Fixas (Celular, Energia, Casa); Saúde (Remédio, Médico, Academia); Alimentação (Restaurante, Padaria/Supermercado, Lanche); Transporte (Uber, Viagem); Lazer (Assinatura, Ingressos, Outro).
 - Cada transação deve ter uma categoria, pode ter várias tags aplicáveis a qualquer categoria e, no máximo, uma tag específica compatível com sua categoria.
+- Compras recorrentes são permitidas apenas para PIX e cartão à vista; suas ocorrências futuras são projetadas mensalmente e o histórico realizado é preservado.
 - O escopo não inclui múltiplos cartões, pagamentos de fatura ou transferências.
 
 ### User Story PF-001:
@@ -129,7 +130,7 @@
 - **Scenario:** Restringir tag específica à categoria correspondente
 - **Given:** que estou lançando uma despesa na categoria Saúde
 - **When:** eu consulto as tags específicas disponíveis
-- **Then:** devo poder selecionar somente Remédio ou Médico
+- **Then:** devo poder selecionar somente Remédio, Médico ou Academia
 
 - **Scenario:** Salvar despesa sem classificações opcionais
 - **Given:** que informei nome, valor positivo e uma categoria válida
@@ -293,3 +294,142 @@
 - **Given:** que não possuo transações registradas
 - **When:** eu solicito a exportação CSV de transações
 - **Then:** devo receber um arquivo CSV válido contendo somente o cabeçalho
+
+### User Story PF-014:
+
+- **Summary:** Registrar uma compra recorrente
+
+#### Use Case:
+- **As a** pessoa que controla as próprias finanças
+- **I want to** marcar uma compra como recorrente
+- **so that** ela seja considerada automaticamente nos meses seguintes
+
+#### Acceptance Criteria:
+- **Scenario:** Criar recorrência PIX
+- **Given:** que informei uma compra PIX válida para `15/08`
+- **When:** eu ativo `Recorrente` e salvo
+- **Then:** devo ver ocorrências mensais previstas a partir de `15/08`, usando o mesmo valor e os mesmos dados
+
+- **Scenario:** Criar recorrência de cartão após o fechamento
+- **Given:** que o cartão fecha no dia 14 e vence no dia 20
+- **and Given:** que informei uma compra recorrente de cartão à vista para `15/08`
+- **When:** eu salvo a compra
+- **Then:** a primeira ocorrência deve aparecer na fatura de setembro, com vencimento em `20/09`
+
+- **Scenario:** Ajustar dia em mês curto
+- **Given:** que uma recorrência possui dia mensal 31
+- **When:** uma ocorrência é projetada para fevereiro
+- **Then:** ela deve usar o último dia disponível de fevereiro
+
+- **Scenario:** Restringir recorrência a compras elegíveis
+- **Given:** que selecionei cartão com mais de uma parcela
+- **When:** eu tento ativar `Recorrente`
+- **Then:** a compra deve permanecer avulsa e a interface deve explicar que compras parceladas não podem ser recorrentes
+
+- **Scenario:** Impedir nova recorrência com data passada
+- **Given:** que estou criando uma transação recorrente
+- **When:** eu informo uma data anterior à data civil atual
+- **Then:** devo receber uma validação objetiva e a série não deve ser criada
+
+### User Story PF-015:
+
+- **Summary:** Alterar uma compra recorrente sem reescrever o histórico
+
+#### Use Case:
+- **As a** pessoa que controla as próprias finanças
+- **I want to** editar uma recorrência a partir da próxima ocorrência
+- **so that** valores já realizados permaneçam fiéis ao histórico
+
+#### Acceptance Criteria:
+- **Scenario:** Alterar antes da ocorrência do mês
+- **Given:** que hoje é `10/08` e a recorrência acontece no dia 15
+- **When:** eu altero o valor
+- **Then:** o novo valor deve valer a partir de `15/08`
+- **and Then:** ocorrências anteriores devem permanecer inalteradas
+
+- **Scenario:** Alterar depois da ocorrência do mês
+- **Given:** que hoje é `20/08` e a recorrência acontece no dia 15
+- **When:** eu altero o valor
+- **Then:** a ocorrência de `15/08` deve permanecer inalterada
+- **and Then:** o novo valor deve valer a partir de `15/09`
+
+- **Scenario:** Editar por meio de uma ocorrência passada
+- **Given:** que abri uma ocorrência recorrente de um mês anterior
+- **When:** eu salvo alterações
+- **Then:** o histórico não deve ser reescrito
+- **and Then:** as alterações devem começar na próxima ocorrência ainda não realizada
+
+### User Story PF-016:
+
+- **Summary:** Encerrar ou tornar avulsa uma compra recorrente
+
+#### Use Case:
+- **As a** pessoa que controla as próprias finanças
+- **I want to** interromper uma recorrência
+- **so that** ela não continue gerando previsões indevidas
+
+#### Acceptance Criteria:
+- **Scenario:** Excluir esta e as próximas ocorrências
+- **Given:** que estou visualizando uma ocorrência recorrente
+- **When:** eu escolho excluir
+- **Then:** devo confirmar a ação `Excluir esta e as próximas recorrências`
+- **and Then:** ocorrências históricas anteriores devem permanecer preservadas
+
+- **Scenario:** Desligar recorrência mantendo a ocorrência atual
+- **Given:** que estou editando uma ocorrência recorrente elegível
+- **When:** eu desligo `Recorrente` e salvo
+- **Then:** a ocorrência sendo editada deve permanecer como compra avulsa
+- **and Then:** as ocorrências posteriores devem ser encerradas
+
+- **Scenario:** Parcelar uma recorrência
+- **Given:** que estou editando uma compra recorrente de cartão à vista
+- **When:** eu aumento o número de parcelas
+- **Then:** `Recorrente` deve ser desligado automaticamente
+- **and Then:** a interface deve avisar que a compra se tornou parcelada e avulsa
+
+### User Story PF-017:
+
+- **Summary:** Converter uma compra avulsa em recorrente
+
+#### Use Case:
+- **As a** pessoa que controla as próprias finanças
+- **I want to** transformar uma compra elegível em recorrente
+- **so that** eu não precise recriá-la
+
+#### Acceptance Criteria:
+- **Scenario:** Converter compra futura
+- **Given:** que uma compra avulsa elegível ainda não ocorreu
+- **When:** eu ativo `Recorrente`
+- **Then:** ela deve se tornar a primeira ocorrência da série
+
+- **Scenario:** Converter compra passada
+- **Given:** que uma compra avulsa elegível já ocorreu
+- **When:** eu ativo `Recorrente`
+- **Then:** a compra passada deve permanecer avulsa
+- **and Then:** a série deve começar na próxima data mensal ainda não realizada
+
+### User Story PF-018:
+
+- **Summary:** Distinguir previsões recorrentes de gastos realizados
+
+#### Use Case:
+- **As a** pessoa que controla as próprias finanças
+- **I want to** visualizar previsões recorrentes com identificação clara
+- **so that** eu entenda a composição dos totais futuros
+
+#### Acceptance Criteria:
+- **Scenario:** Exibir previsão no período consultado
+- **Given:** que existe uma recorrência ativa com ocorrência futura no período
+- **When:** eu consulto Resumo, Fatura ou Lista
+- **Then:** a ocorrência prevista deve aparecer e compor os totais aplicáveis
+- **and Then:** a interface deve informar `Inclui recorrências previstas`
+
+- **Scenario:** Identificar ocorrência recorrente
+- **Given:** que uma ocorrência pertence a uma série
+- **When:** eu a visualizo na Lista ou Fatura
+- **Then:** devo ver selo e ícone `Recorrente`
+
+- **Scenario:** Excluir previsões futuras do CSV
+- **Given:** que existem ocorrências recorrentes realizadas e previstas
+- **When:** eu exporto um CSV
+- **Then:** o arquivo deve incluir somente as ocorrências realizadas até hoje

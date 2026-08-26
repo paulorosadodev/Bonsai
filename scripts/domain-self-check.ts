@@ -1,0 +1,112 @@
+import assert from "node:assert/strict";
+import { createBillingEntries, getInvoiceDueDate, getPurchaseInvoiceCycle, occurrenceDateInMonth, splitCents, toSaoPauloCivilDate } from "../src/lib/domain/billing-cycle";
+import { formatBrl, parseBrlToCents } from "../src/lib/domain/money";
+import { isEligibleForRecurrence, nextEditableEffectiveFrom, projectSeriesOccurrences, settingsAt, versionAt } from "../src/lib/domain/recurrence";
+
+assert.equal(getInvoiceDueDate("2026-08-13", 14, 20), "2026-08-20");
+assert.equal(getInvoiceDueDate("2026-08-14", 14, 20), "2026-09-20");
+assert.equal(getInvoiceDueDate("2026-08-15", 14, 20), "2026-09-20");
+assert.deepEqual(getPurchaseInvoiceCycle("2026-08-10", 14, 20), { closingDate: "2026-08-14", dueDate: "2026-08-20" });
+assert.deepEqual(getPurchaseInvoiceCycle("2026-08-26", 14, 20), { closingDate: "2026-09-14", dueDate: "2026-09-20" });
+assert.deepEqual(getPurchaseInvoiceCycle("2026-09-16", 14, 20), { closingDate: "2026-10-14", dueDate: "2026-10-20" });
+assert.deepEqual(getPurchaseInvoiceCycle("2026-08-10", 25, 5), { closingDate: "2026-08-25", dueDate: "2026-09-05" });
+assert.deepEqual(splitCents(1000, 3), [334, 333, 333]);
+assert.equal(parseBrlToCents("R$ 1.250,27"), 125027);
+assert.equal(formatBrl(125027), "R$ 1.250,27");
+assert.equal(formatBrl(0), "R$ 0,00");
+assert.equal(toSaoPauloCivilDate(new Date("2026-08-14T02:30:00Z")), "2026-08-13");
+assert.deepEqual(
+    createBillingEntries({
+        purchaseDate: "2026-08-14",
+        paymentMethod: "credit",
+        amountCents: 1000,
+        installmentCount: 3,
+        closingDay: 14,
+        dueDay: 20,
+    }).map(({ amountCents, competenceDate, invoiceDueDate }) => ({ amountCents, competenceDate, invoiceDueDate })),
+    [
+        { amountCents: 334, competenceDate: "2026-09-01", invoiceDueDate: "2026-09-20" },
+        { amountCents: 333, competenceDate: "2026-10-01", invoiceDueDate: "2026-10-20" },
+        { amountCents: 333, competenceDate: "2026-11-01", invoiceDueDate: "2026-11-20" },
+    ],
+);
+
+assert.equal(occurrenceDateInMonth(2026, 2, 31), "2026-02-28");
+assert.equal(occurrenceDateInMonth(2028, 2, 31), "2028-02-29");
+assert.equal(occurrenceDateInMonth(2026, 4, 31), "2026-04-30");
+assert.equal(isEligibleForRecurrence("pix", 1), true);
+assert.equal(isEligibleForRecurrence("credit", 1), true);
+assert.equal(isEligibleForRecurrence("credit", 2), false);
+assert.equal(nextEditableEffectiveFrom("2026-08-10", 15, 15), "2026-08-15");
+assert.equal(nextEditableEffectiveFrom("2026-08-15", 15, 15), "2026-09-15");
+assert.equal(nextEditableEffectiveFrom("2026-08-20", 15, 15), "2026-09-15");
+assert.equal(nextEditableEffectiveFrom("2026-08-10", 15, 20), "2026-08-20");
+assert.equal(nextEditableEffectiveFrom("2026-08-10", 15, 5), "2026-09-05");
+assert.equal(nextEditableEffectiveFrom("2026-08-03", 15, 5), "2026-08-05");
+
+const series = { id: "11111111-1111-1111-1111-111111111111", startsOn: "2026-08-15" as const, endsBefore: null };
+const versions = [
+    {
+        seriesId: series.id,
+        effectiveFrom: "2026-08-15" as const,
+        monthlyDay: 15,
+        name: "Netflix",
+        description: null,
+        amountCents: 5500,
+        paymentMethod: "credit" as const,
+        category: "leisure" as const,
+        generalTags: [],
+        specificTag: "subscription" as const,
+    },
+];
+const settingsHistory = [{ effectiveFrom: "1970-01-01T00:00:00.000Z", closingDay: 14, dueDay: 20 }];
+const fallback = { closingDay: 14, dueDay: 20 };
+const firstCard = projectSeriesOccurrences(series, versions, settingsHistory, "2026-08-01", "2026-09-30", "2026-08-10", fallback);
+assert.equal(firstCard.length, 2);
+assert.equal(firstCard[0]?.occurrenceDate, "2026-08-15");
+assert.equal(firstCard[0]?.entry.competenceDate, "2026-09-01");
+assert.equal(firstCard[0]?.entry.invoiceDueDate, "2026-09-20");
+assert.equal(firstCard[0]?.isForecast, true);
+assert.equal(firstCard[1]?.occurrenceDate, "2026-09-15");
+
+const february = projectSeriesOccurrences({ id: series.id, startsOn: "2026-01-31", endsBefore: null }, [{ ...versions[0], effectiveFrom: "2026-01-31", monthlyDay: 31, paymentMethod: "pix" }], settingsHistory, "2026-02-01", "2026-02-28", "2026-01-15", fallback);
+assert.equal(february[0]?.occurrenceDate, "2026-02-28");
+assert.equal(february[0]?.entry.competenceDate, "2026-02-01");
+
+const laterVersion = [versions[0], { ...versions[0], effectiveFrom: "2026-09-15" as const, amountCents: 6900 }];
+assert.equal(versionAt(laterVersion, "2026-08")?.amountCents, 5500);
+assert.equal(versionAt(laterVersion, "2026-09")?.amountCents, 6900);
+const versioned = projectSeriesOccurrences(series, laterVersion, settingsHistory, "2026-08-01", "2026-09-30", "2026-08-20", fallback);
+assert.equal(versioned[0]?.amountCents, 5500);
+assert.equal(versioned[1]?.amountCents, 6900);
+
+const ended = projectSeriesOccurrences({ ...series, endsBefore: "2026-09-15" }, versions, settingsHistory, "2026-08-01", "2026-10-31", "2026-08-10", fallback);
+assert.deepEqual(
+    ended.map((item) => item.occurrenceDate),
+    ["2026-08-15"],
+);
+
+const historicSettings = settingsAt(
+    [
+        { effectiveFrom: "2026-01-01T00:00:00.000Z", closingDay: 14, dueDay: 20 },
+        { effectiveFrom: "2026-08-20T15:00:00.000Z", closingDay: 10, dueDay: 18 },
+    ],
+    "2026-08-15",
+    fallback,
+);
+assert.deepEqual(historicSettings, { closingDay: 14, dueDay: 20 });
+const futureSettings = settingsAt(
+    [
+        { effectiveFrom: "2026-01-01T00:00:00.000Z", closingDay: 14, dueDay: 20 },
+        { effectiveFrom: "2026-08-20T15:00:00.000Z", closingDay: 10, dueDay: 18 },
+    ],
+    "2026-09-15",
+    fallback,
+);
+assert.deepEqual(futureSettings, { closingDay: 10, dueDay: 18 });
+
+const realizedOnly = projectSeriesOccurrences(series, versions, settingsHistory, "2026-08-01", "2026-12-31", "2026-08-20", fallback).filter((item) => item.occurrenceDate <= "2026-08-20");
+assert.deepEqual(
+    realizedOnly.map((item) => item.occurrenceDate),
+    ["2026-08-15"],
+);

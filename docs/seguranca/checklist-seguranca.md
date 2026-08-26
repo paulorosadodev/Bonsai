@@ -8,8 +8,9 @@ Este checklist cobre uma aplicação Next.js com App Router hospedada na Vercel 
 
 O login será exclusivamente por **e-mail + senha**. Não haverá nome de usuário, nome de exibição nem foto de perfil.
 
-1. Use o e-mail como identificador de autenticação e exiba-o somente onde for necessário para fluxos de conta, como redefinição de senha.
+1. Use o e-mail somente como identificador na tela de login.
 2. Não crie tabela, campo ou endpoint de perfil para nome de usuário ou foto; esses dados não atendem a uma necessidade do escopo.
+3. O aplicativo oferece somente login e logout. Qualquer alteração de senha é uma operação administrativa feita diretamente no painel do Supabase.
 
 Referências: [métodos de login por senha](https://supabase.com/docs/guides/auth/passwords) e [segurança de Auth](https://supabase.com/docs/guides/auth/security).
 
@@ -21,14 +22,14 @@ Referências: [métodos de login por senha](https://supabase.com/docs/guides/aut
 4. No painel de Auth, desabilite novos cadastros públicos (**Disable new user signups**). Essa configuração é obrigatória: esconder a tela de cadastro não bloqueia chamadas diretas à API.
 5. Crie a única conta pelo fluxo administrativo apropriado do painel e guarde o e-mail como credencial. Não deixe uma rota de `signUp` disponível depois do provisionamento.
 6. Ative a confirmação de e-mail para a criação inicial e para troca de e-mail. A conta só deve estar utilizável após a confirmação.
-7. Configure um provedor SMTP confiável e um remetente/domínio adequados antes de depender dos e-mails de confirmação e recuperação. Teste a entrega, inclusive spam e links em dispositivos móveis.
-8. Para redefinição de senha, habilite o fluxo oficial de recuperação, com URL de retorno previamente permitida. A página de retorno deve permitir somente a atualização de senha da sessão de recuperação, sem aceitar um `user_id` fornecido pelo navegador.
-9. Defina política de senha no Auth (comprimento mínimo forte; de preferência verificação contra senhas comprometidas, se disponibilizada no plano/configuração) e use um gerenciador de senhas. Para acesso ao painel Supabase e à Vercel, habilite MFA.
-10. Revogue sessões e troque a senha imediatamente ao perder um dispositivo ou suspeitar de comprometimento.
+7. Configure um provedor SMTP confiável e um remetente/domínio adequados antes de depender dos e-mails de confirmação administrativa. Teste a entrega, inclusive spam e links em dispositivos móveis.
+8. Defina política de senha no Auth (comprimento mínimo forte; de preferência verificação contra senhas comprometidas, se disponibilizada no plano/configuração) e use um gerenciador de senhas. Para acesso ao painel Supabase e à Vercel, habilite MFA.
+9. Revogue sessões e altere a senha administrativamente ao perder um dispositivo ou suspeitar de comprometimento.
+10. Não configure URLs de callback de recuperação no aplicativo.
 
-**Não revelar informação de conta:** as telas de login e recuperação devem sempre responder de forma genérica (“se a conta existir, enviaremos instruções”), sem confirmar se um e-mail está cadastrado.
+**Não revelar informação de conta:** a tela de login deve responder de forma genérica, sem confirmar se um e-mail está cadastrado.
 
-Referências: [configuração de senha](https://supabase.com/docs/guides/auth/passwords), [redirecionamentos](https://supabase.com/docs/guides/auth/redirect-urls) e [configuração de SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
+Referências: [configuração de senha](https://supabase.com/docs/guides/auth/passwords) e [configuração de SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
 
 ## 2. Sessão persistente com SSR, cookies e renovação
 
@@ -100,6 +101,8 @@ Antes de adaptar esse exemplo:
 6. Views podem contornar RLS por padrão. Evite-as para dados privados ou use `security_invoker = true` quando suportado; caso contrário, deixe-as fora de schema exposto e revogue privilégios adequadamente.
 7. Funções `security definer` são código privilegiado: mantenha-as em schema não exposto, fixe o `search_path`, conceda execução apenas ao papel necessário e evite-as se uma política RLS simples resolve o caso.
 8. Execute o **Security Advisor** do Supabase antes de produção e após cada alteração de schema/políticas.
+9. Tabelas de séries recorrentes, versões e histórico de configuração do ciclo devem repetir o mesmo isolamento por `user_id`. Relações entre essas tabelas precisam impedir que uma versão ou série seja vinculada a registros de outro usuário.
+10. Operações compostas de recorrência — criar versão, encerrar série, converter compra ou manter uma ocorrência como avulsa — devem ser atômicas, derivar o proprietário de `auth.uid()` e não aceitar `user_id` do cliente.
 
 Referências: [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [segurança do banco](https://supabase.com/docs/guides/database/database-security) e [checklist de produção](https://supabase.com/docs/guides/deployment/going-into-prod).
 
@@ -141,8 +144,8 @@ Referências: [chaves de API do Supabase](https://supabase.com/docs/guides/api/a
 1. Para mutações feitas via Server Actions/Route Handlers com cookies, verifique `Origin` contra a origem canônica para pedidos cross-site e não aceite métodos mutáveis sem essa validação quando a rota for acessível por navegador.
 2. Não permita CORS com `Access-Control-Allow-Origin: *` junto com credenciais. Para uma aplicação pessoal sem API pública, não habilite CORS.
 3. Mantenha cookies com `SameSite=Lax` ou mais restritivo; use token anti-CSRF adicional se for necessário `SameSite=None`, domínios cruzados ou integrações embutidas.
-4. Aplique limites de taxa por IP/identidade a login, recuperação de senha, callbacks e mutações caras. Use os limites de Auth configuráveis no Supabase e, se houver endpoints expostos na Vercel, um controle compatível com ambiente serverless (WAF/rate limiting/serviço externo), não memória do processo.
-5. Responda de modo genérico a tentativas de login e recuperação, registre a contagem sem gravar senha, token ou corpo sensível.
+4. Aplique limites de taxa por IP/identidade a login e mutações caras. Use os limites de Auth configuráveis no Supabase e, se houver endpoints expostos na Vercel, um controle compatível com ambiente serverless (WAF/rate limiting/serviço externo), não memória do processo.
+5. Responda de modo genérico a tentativas de login e registre a contagem sem gravar senha, token ou corpo sensível.
 
 ### Cabeçalhos
 
@@ -187,8 +190,8 @@ Referências: [backups do Supabase](https://supabase.com/docs/guides/platform/ba
 
 ## 9. Monitoramento e resposta a incidentes
 
-1. Monitore erros de aplicação, falhas de login/recuperação, bloqueios de RLS, erros de banco, taxa de 4xx/5xx e deploys falhos. Redija logs: nunca registre senha, token, cookie, Authorization, dados financeiros completos ou PII desnecessária.
-2. Defina alertas para picos de tentativas de login, recuperação de senha, erros 401/403/429, falhas de backup e alteração de variáveis/integrações.
+1. Monitore erros de aplicação, falhas de login, bloqueios de RLS, erros de banco, taxa de 4xx/5xx e deploys falhos. Redija logs: nunca registre senha, token, cookie, Authorization, dados financeiros completos ou PII desnecessária.
+2. Defina alertas para picos de tentativas de login, erros 401/403/429, falhas de backup e alteração de variáveis/integrações.
 3. Mantenha uma lista offline ou em cofre de senhas dos passos de incidente: revogar sessões, trocar senha, rotacionar chaves, pausar integrações, restaurar backup e verificar acessos/deploys.
 4. Ao suspeitar de vazamento de chave, presuma comprometimento: revogue/rotacione a chave no provedor, atualize o ambiente, reimplante, revise logs e remova o segredo da fonte da exposição. Apagar um commit não revoga uma chave.
 
@@ -199,16 +202,16 @@ Referências: [logs do Supabase](https://supabase.com/docs/guides/telemetry/logs
 Execute e registre estes testes em ambiente de teste e, quando seguro, em preview protegido:
 
 - [ ] Não existe rota/botão de cadastro; uma tentativa direta de criar conta é recusada após desabilitar cadastros públicos.
-- [ ] A conta inicial exige confirmação de e-mail; URL de confirmação e recuperação fora da allowlist são recusadas.
-- [ ] Recuperação não enumera e-mails; redefine a senha apenas pelo fluxo autorizado e invalida a sessão conforme a política definida.
+- [ ] A conta inicial é criada e administrada pelo painel do Supabase; o aplicativo não expõe cadastro, recuperação, callback ou redefinição de senha.
 - [ ] Login válido persiste após recarregar e abrir nova aba; logout encerra o acesso.
 - [ ] Pedido sem cookie/sessão é redirecionado/recusado; token ou `user_id` alterado no cliente não concede acesso.
 - [ ] Cada tabela exposta tem RLS habilitada e políticas `SELECT`, `INSERT`, `UPDATE` e `DELETE` testadas para proprietário, não autenticado e tentativa de outro UUID.
+- [ ] Séries recorrentes, versões e configurações históricas não podem ser lidas, vinculadas ou alteradas por outro usuário; suas mutações compostas não deixam estado parcial após falha.
 - [ ] Inserção/alteração com `user_id` diferente falha; nenhuma API com chave pública retorna dados financeiros sem autenticação.
 - [ ] Nenhum bundle do navegador, log de build ou preview contém `service_role`, senha SMTP ou outro segredo.
-- [ ] Tentativas repetidas de login, recuperação e endpoints mutáveis recebem limitação de taxa.
+- [ ] Tentativas repetidas de login e endpoints mutáveis recebem limitação de taxa.
 - [ ] Mutações cross-site sem origem esperada são recusadas; CORS não permite origens/credenciais desnecessárias.
-- [ ] Cabeçalhos de segurança e CSP são validados no navegador sem quebrar login, recuperação, exportação ou carregamento de recursos necessários.
+- [ ] Cabeçalhos de segurança e CSP são validados no navegador sem quebrar login, exportação ou carregamento de recursos necessários.
 - [ ] Exportação CSV contém somente dados autorizados, não é armazenada em cache e neutraliza células que poderiam ser fórmulas.
 - [ ] Backup é restaurado com sucesso em ambiente isolado e os dados conferem.
 - [ ] Previews são protegidos, não usam secrets de produção e a produção só recebe deploy da branch protegida.
