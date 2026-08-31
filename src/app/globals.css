@@ -32,6 +32,7 @@
     --color-background: var(--ink);
     --color-foreground: var(--text);
     --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    --font-brand: var(--font-logo), cursive;
 }
 
 html {

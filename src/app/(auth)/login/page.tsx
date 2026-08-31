@@ -16,9 +16,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
     return (
         <>
-            <div className="flex flex-col items-center gap-3">
-                <Image src={logo} alt="" width={200} height={200} className="size-50 object-contain" priority />
-                <span className="text-2xl font-bold tracking-wide text-text [text-shadow:0_0_8px_color-mix(in_srgb,var(--orchid)_35%,transparent),0_0_18px_color-mix(in_srgb,var(--orchid)_18%,transparent)]">Bonsai 盆栽</span>
+            <div className="flex flex-col items-center gap-1">
+                <Image src={logo} alt="" width={800} height={800} className="size-60 object-contain" priority />
+                <span className="text-6xl font-brand tracking-wide text-text [text-shadow:0_0_8px_color-mix(in_srgb,var(--orchid)_35%,transparent),0_0_18px_color-mix(in_srgb,var(--orchid)_18%,transparent)]">
+                    盆栽
+                </span>
             </div>
             <LoginForm next={getSafePath(params.next)} />
         </>

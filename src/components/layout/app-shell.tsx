@@ -10,8 +10,8 @@ function HeaderFallback() {
         <header className="sticky top-0 z-30 bg-ink pt-[env(safe-area-inset-top,0px)]">
             <div className="mx-auto flex h-14 w-full max-w-lg items-center px-4">
                 <span className="inline-flex items-center gap-2">
-                    <Image src={logo1} alt="" width={52} height={52} className="size-13 object-contain" priority />
-                    <span className="text-xl font-bold tracking-wide text-text [text-shadow:0_0_8px_color-mix(in_srgb,var(--orchid)_35%,transparent),0_0_18px_color-mix(in_srgb,var(--orchid)_18%,transparent)]">盆栽</span>
+                    <Image src={logo1} alt="" width={1000} height={1000} className="size-13 object-contain" priority />
+                    <span className="mt-1 font-brand text-3xl tracking-wide text-text [text-shadow:0_0_8px_color-mix(in_srgb,var(--orchid)_35%,transparent),0_0_18px_color-mix(in_srgb,var(--orchid)_18%,transparent)]">盆栽</span>
                 </span>
             </div>
         </header>
