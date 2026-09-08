@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getTransaction } from "@/lib/data/transactions";
 import { getCategories } from "@/lib/data/categories";
 import { getGeneralTags, getSpecificTags } from "@/lib/data/tags";
+import { getLocations } from "@/lib/data/locations";
 import { DeleteTransactionButton } from "@/components/features/delete-transaction-button";
 import { TransactionForm } from "@/components/features/transaction-form";
 import { currentCivilDate } from "@/components/features/params";
@@ -9,12 +10,7 @@ import { BackLink } from "@/components/ui/back-link";
 
 export default async function EditTransactionPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
-    const [transaction, categories, generalTags, specificTags] = await Promise.all([
-        getTransaction(id),
-        getCategories(),
-        getGeneralTags(),
-        getSpecificTags(),
-    ]);
+    const [transaction, categories, generalTags, specificTags, locations] = await Promise.all([getTransaction(id), getCategories(), getGeneralTags(), getSpecificTags(), getLocations()]);
 
     if (!transaction) {
         notFound();
@@ -27,14 +23,7 @@ export default async function EditTransactionPage({ params }: { params: Promise<
                 <DeleteTransactionButton name={transaction.name} id={transaction.id} />
             </div>
             <h1 className="text-2xl font-bold">Editar transação</h1>
-            <TransactionForm
-                mode="edit"
-                transaction={transaction}
-                today={currentCivilDate()}
-                categories={categories}
-                generalTags={generalTags}
-                specificTags={specificTags}
-            />
+            <TransactionForm mode="edit" transaction={transaction} today={currentCivilDate()} categories={categories} generalTags={generalTags} specificTags={specificTags} locations={locations} />
         </div>
     );
 }

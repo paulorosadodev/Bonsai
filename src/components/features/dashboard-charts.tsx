@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useReducedMotion } from "motion/react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { formatBrl } from "@/lib/domain/money";
 import type { DashboardCategoryTotal, DashboardHistoryPoint } from "@/lib/data/types";
 import { Card } from "@/components/ui/card";
@@ -49,15 +50,20 @@ function ChartViewport({ className, height, width, children }: { className: stri
     );
 
     return (
-        <div className={className} style={{ height, width }} aria-hidden>
+        <div className={cn("outline-none", className)} style={{ height, width }} aria-hidden>
             {ready ? children : null}
         </div>
     );
 }
 
-export function CategoryChart({ items }: { items: DashboardCategoryTotal[] }) {
+export function CategoryChart({ items, selectedCategoryId }: { items: DashboardCategoryTotal[]; selectedCategoryId?: string }) {
     const [isOpen, setIsOpen] = useState(false);
     const reduce = useReducedMotion();
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const [, startTransition] = useTransition();
+
     const rows = items
         .filter((item) => item.amountCents > 0)
         .map((item) => ({
@@ -67,6 +73,29 @@ export function CategoryChart({ items }: { items: DashboardCategoryTotal[] }) {
             fill: item.color,
         }))
         .sort((a, b) => b.amountCents - a.amountCents);
+
+    const selectedRow = selectedCategoryId ? rows.find((r) => r.categoryId === selectedCategoryId) : null;
+
+    const handleSelectCategory = useCallback(
+        (categoryId: string) => {
+            const nextParams = new URLSearchParams(searchParams.toString());
+            const isCurrentlySelected = selectedCategoryId === categoryId;
+
+            if (isCurrentlySelected) {
+                nextParams.delete("category");
+            } else {
+                nextParams.set("category", categoryId);
+            }
+
+            const query = nextParams.toString();
+            const href = query ? `${pathname}?${query}` : pathname;
+
+            startTransition(() => {
+                router.replace(href, { scroll: false });
+            });
+        },
+        [pathname, router, searchParams, selectedCategoryId, startTransition],
+    );
 
     if (rows.length === 0) {
         return (
@@ -88,32 +117,83 @@ export function CategoryChart({ items }: { items: DashboardCategoryTotal[] }) {
                     setIsOpen((prev) => !prev);
                 }
             }}
-            className="flex flex-col gap-3 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
+            className="flex flex-col gap-3 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 outline-none focus-visible:ring-2 focus-visible:ring-violet"
         >
             <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-text">Por Categoria</h2>
+                <div className="flex items-center gap-2 min-w-0">
+                    <h2 className="text-lg font-bold text-text">Por Categoria</h2>
+                    {selectedRow ? (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectCategory(selectedRow.categoryId);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-violet/15 px-2.5 py-0.5 text-xs font-medium text-violet border border-violet/30 hover:bg-violet/25 transition-colors cursor-pointer"
+                            title="Remover filtro de categoria"
+                        >
+                            <span className="size-2 rounded-full shrink-0" style={{ background: selectedRow.fill }} />
+                            <span className="truncate max-w-28">{selectedRow.name}</span>
+                            <X className="size-3 shrink-0" />
+                        </button>
+                    ) : null}
+                </div>
                 <ChevronDown className={cn("size-4 text-muted transition-transform duration-200", isOpen && "rotate-180 text-violet")} aria-hidden />
             </div>
 
             <ChartViewport className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+                    <BarChart
+                        data={rows}
+                        layout="vertical"
+                        margin={{ top: 4, right: 8, left: 4, bottom: 0 }}
+                        onClick={(state, event) => {
+                            event?.stopPropagation?.();
+                            const index = typeof state?.activeTooltipIndex === "number" ? state.activeTooltipIndex : typeof state?.activeIndex === "number" ? state.activeIndex : -1;
+                            if (index >= 0 && rows[index]) {
+                                handleSelectCategory(rows[index].categoryId);
+                            } else if (state?.activeLabel) {
+                                const row = rows.find((r) => r.label === state.activeLabel);
+                                if (row) {
+                                    handleSelectCategory(row.categoryId);
+                                }
+                            }
+                        }}
+                    >
                         <XAxis type="number" hide />
-                        <YAxis type="category" dataKey="label" width={92} tick={{ fill: "var(--muted)", fontSize: 12 }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="label" width={92} tick={{ fill: "var(--muted)", fontSize: 12, cursor: "pointer" }} axisLine={false} tickLine={false} />
                         <Tooltip cursor={tooltipCursor} content={<ChartTooltip />} wrapperStyle={tooltipWrapperStyle} contentStyle={tooltipContentStyle} />
-                        <Bar dataKey="amountCents" radius={[0, 8, 8, 0]} isAnimationActive={!reduce} maxBarSize={22}>
-                            {rows.map((row) => (
-                                <Cell key={row.categoryId} fill={row.fill} />
-                            ))}
+                        <Bar dataKey="amountCents" radius={[0, 8, 8, 0]} isAnimationActive={!reduce} maxBarSize={22} cursor="pointer">
+                            {rows.map((row) => {
+                                const isSelected = selectedCategoryId === row.categoryId;
+                                const isDimmed = Boolean(selectedCategoryId && !isSelected);
+
+                                return (
+                                    <Cell
+                                        key={row.categoryId}
+                                        fill={row.fill}
+                                        cursor="pointer"
+                                        opacity={isDimmed ? 0.35 : 1}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSelectCategory(row.categoryId);
+                                        }}
+                                        style={{
+                                            transition: "opacity 200ms ease, filter 200ms ease",
+                                            filter: isSelected ? "drop-shadow(0 0 6px rgba(167, 139, 250, 0.45))" : undefined,
+                                        }}
+                                    />
+                                );
+                            })}
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
             </ChartViewport>
 
             {isOpen ? (
-                <ul className="flex flex-col gap-1.5 border-t border-surface-raised/70 pt-3">
+                <ul className="flex flex-col gap-1 border-t border-surface-raised/70 pt-3">
                     {rows.map((row) => (
-                        <CategoryLegendItem key={row.categoryId} row={row} />
+                        <CategoryLegendItem key={row.categoryId} row={row} isSelected={row.categoryId === selectedCategoryId} onSelect={() => handleSelectCategory(row.categoryId)} />
                     ))}
                 </ul>
             ) : null}
@@ -121,14 +201,26 @@ export function CategoryChart({ items }: { items: DashboardCategoryTotal[] }) {
     );
 }
 
-function CategoryLegendItem({ row }: { row: { categoryId: string; label: string; fill: string; icon: string; amountCents: number } }) {
+function CategoryLegendItem({ row, isSelected, onSelect }: { row: { categoryId: string; label: string; fill: string; icon: string; amountCents: number }; isSelected: boolean; onSelect: () => void }) {
     return (
-        <li className="flex items-center justify-between gap-3 text-sm">
-            <span className="inline-flex items-center gap-2 text-muted">
-                <DynamicIcon name={row.icon} className="size-4" style={{ color: row.fill }} />
-                {row.label}
-            </span>
-            <span className="tabular text-text">{formatBrl(row.amountCents)}</span>
+        <li>
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect();
+                }}
+                className={cn("flex w-full items-center justify-between gap-3 rounded-xl px-2.5 py-1.5 text-sm transition-all text-left outline-none focus-visible:ring-1 focus-visible:ring-violet", isSelected ? "bg-surface-raised font-medium ring-1 ring-violet/50" : "hover:bg-surface-raised/50")}
+            >
+                <span className={cn("inline-flex items-center gap-2", isSelected ? "text-text font-medium" : "text-muted")}>
+                    <DynamicIcon name={row.icon} className="size-4" style={{ color: row.fill }} />
+                    {row.label}
+                </span>
+                <div className="flex items-center gap-2">
+                    <span className="tabular text-text">{formatBrl(row.amountCents)}</span>
+                    {isSelected ? <span className="text-[11px] font-semibold text-violet bg-violet/10 px-1.5 py-0.5 rounded-md">Ativo</span> : null}
+                </div>
+            </button>
         </li>
     );
 }
@@ -194,7 +286,7 @@ export function HistoryChart({ items }: { items: DashboardHistoryPoint[] }) {
                     setIsOpen((prev) => !prev);
                 }
             }}
-            className="flex flex-col gap-3 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
+            className="flex flex-col gap-3 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 outline-none focus-visible:ring-2 focus-visible:ring-violet"
         >
             <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-bold text-text">Histórico Mensal</h2>

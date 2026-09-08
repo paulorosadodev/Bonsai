@@ -55,6 +55,7 @@ async function persistTransaction(id: string | null, transaction: TransactionInp
             category_id: transaction.category,
             general_tag_ids: transaction.generalTags,
             specific_tag_id: transaction.specificTag ?? null,
+            location_id: transaction.locationId ?? null,
         },
         p_entries: entries,
     });

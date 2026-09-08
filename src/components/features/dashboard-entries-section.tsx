@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { paymentMethodLabels, type CategoryOption, type GeneralTagOption, type SpecificTagOption } from "@/lib/domain/catalog";
@@ -37,31 +37,36 @@ interface DashboardEntriesSectionProps {
     specificTags: SpecificTagOption[];
 }
 
-export function DashboardEntriesSection({
-    entries,
-    totalCents,
-    filteredTotalCents,
-    filters,
-    categories,
-    generalTags,
-    specificTags,
-}: DashboardEntriesSectionProps) {
-    const hasActiveFilters = Boolean(
-        filters.search ||
-        filters.category ||
-        filters.paymentMethod ||
-        filters.generalTag ||
-        filters.specificTag ||
-        (filters.sort && filters.sort !== "date_desc")
-    );
+export function DashboardEntriesSection({ entries, totalCents, filteredTotalCents, filters, categories, generalTags, specificTags }: DashboardEntriesSectionProps) {
+    const hasActiveFilters = Boolean(filters.search || filters.category || filters.paymentMethod || filters.generalTag || filters.specificTag || (filters.sort && filters.sort !== "date_desc"));
 
     const [userToggle, setUserToggle] = useState<boolean | null>(null);
     const [prevHasActiveFilters, setPrevHasActiveFilters] = useState(hasActiveFilters);
+    const [prevCategory, setPrevCategory] = useState(filters.category);
+    const sectionRef = useRef<HTMLElement>(null);
+    const prevScrolledCategoryRef = useRef(filters.category);
+
+    if (filters.category !== prevCategory) {
+        setPrevCategory(filters.category);
+        if (filters.category) {
+            setUserToggle(true);
+        }
+    }
 
     if (hasActiveFilters !== prevHasActiveFilters) {
         setPrevHasActiveFilters(hasActiveFilters);
         setUserToggle(null);
     }
+
+    useEffect(() => {
+        if (filters.category && filters.category !== prevScrolledCategoryRef.current) {
+            const timer = setTimeout(() => {
+                sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 60);
+            return () => clearTimeout(timer);
+        }
+        prevScrolledCategoryRef.current = filters.category;
+    }, [filters.category]);
 
     const isOpen = userToggle !== null ? userToggle : hasActiveFilters;
 
@@ -70,7 +75,7 @@ export function DashboardEntriesSection({
     };
 
     return (
-        <section className="flex flex-col gap-3">
+        <section ref={sectionRef} id="composicao-gastos" className="flex flex-col gap-3 scroll-mt-20">
             <Card
                 role="button"
                 tabIndex={0}
@@ -82,7 +87,7 @@ export function DashboardEntriesSection({
                         handleToggle();
                     }
                 }}
-                className="flex flex-col gap-2 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
+                className="flex flex-col gap-2 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 outline-none focus-visible:ring-2 focus-visible:ring-violet"
             >
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 flex-col gap-0.5">
@@ -100,31 +105,19 @@ export function DashboardEntriesSection({
 
             {isOpen ? (
                 <div className="flex flex-col gap-3">
-                    <TransactionFilters
-                        values={filters}
-                        categories={categories}
-                        generalTags={generalTags}
-                        specificTags={specificTags}
-                        showPaymentMethod={true}
-                        searchPlaceholder="Buscar nos gastos do mês..."
-                    />
+                    <TransactionFilters values={filters} categories={categories} generalTags={generalTags} specificTags={specificTags} showPaymentMethod={true} searchPlaceholder="Buscar nos gastos do mês..." />
 
                     {hasActiveFilters && entries.length > 0 ? (
                         <div className="flex items-center justify-between px-1 text-xs text-muted">
                             <span>
                                 {entries.length} {entries.length === 1 ? "lançamento encontrado" : "lançamentos encontrados"}
                             </span>
-                            <span className="font-medium text-text">
-                                Total filtrado: {formatBrl(filteredTotalCents)}
-                            </span>
+                            <span className="font-medium text-text">Total filtrado: {formatBrl(filteredTotalCents)}</span>
                         </div>
                     ) : null}
 
                     {entries.length === 0 ? (
-                        <EmptyState
-                            title={hasActiveFilters ? "Nenhum lançamento neste filtro" : "Ainda não há lançamentos neste mês"}
-                            description={hasActiveFilters ? "Tente ajustar ou limpar os filtros para ver outros gastos." : "Quando houver despesas ou parcelas neste mês, elas aparecem aqui."}
-                        />
+                        <EmptyState title={hasActiveFilters ? "Nenhum lançamento neste filtro" : "Ainda não há lançamentos neste mês"} description={hasActiveFilters ? "Tente ajustar ou limpar os filtros para ver outros gastos." : "Quando houver despesas ou parcelas neste mês, elas aparecem aqui."} />
                     ) : (
                         <ul className="flex flex-col gap-3">
                             {entries.map((item) => (

@@ -35,10 +35,10 @@ export const loginSchema = z.object({
     password: z.string({ message: "Informe a senha" }).min(1, "Informe a senha").max(128, "A senha deve ter no máximo 128 caracteres"),
 });
 
-const optionalCivilDateSchema = z.union([
-    civilDateSchema,
-    z.literal(""),
-]).nullable().optional();
+const optionalCivilDateSchema = z
+    .union([civilDateSchema, z.literal("")])
+    .nullable()
+    .optional();
 
 export const transactionSchema = z
     .object({
@@ -75,8 +75,17 @@ export const transactionSchema = z
             .max(20, "Número de tags excedido")
             .refine((tags) => new Set(tags).size === tags.length, "Não repita tags"),
         specificTag: z.string().uuid("Tag específica inválida").nullable().optional(),
+        locationId: z.string().uuid("Localidade inválida").nullable().optional(),
     })
     .superRefine((transaction, context) => {
+        if (transaction.name.trim().toLowerCase() === "uber" && !transaction.locationId) {
+            context.addIssue({
+                code: "custom",
+                path: ["locationId"],
+                message: "Selecione uma localidade para a transação Uber",
+            });
+        }
+
         if (transaction.paymentMethod === "pix" && transaction.installmentCount !== 1) {
             context.addIssue({
                 code: "custom",
@@ -154,7 +163,10 @@ export const categoryCreateSchema = z.object({
 
 export const categoryUpdateSchema = z.object({
     name: z.string().trim().min(1, "Informe o nome").max(50, "O nome deve ter no máximo 50 caracteres").optional(),
-    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor em formato hexadecimal inválido (#RRGGBB)").optional(),
+    color: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/, "Cor em formato hexadecimal inválido (#RRGGBB)")
+        .optional(),
     icon: z.string().trim().min(1, "Selecione o ícone").max(50, "Nome do ícone inválido").optional(),
 });
 
@@ -166,7 +178,10 @@ export const generalTagCreateSchema = z.object({
 
 export const generalTagUpdateSchema = z.object({
     name: z.string().trim().min(1, "Informe o nome").max(50, "O nome deve ter no máximo 50 caracteres").optional(),
-    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor em formato hexadecimal inválido (#RRGGBB)").optional(),
+    color: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/, "Cor em formato hexadecimal inválido (#RRGGBB)")
+        .optional(),
     icon: z.string().trim().max(50, "Nome do ícone inválido").nullable().optional(),
 });
 
@@ -179,8 +194,19 @@ export const specificTagCreateSchema = z.object({
 
 export const specificTagUpdateSchema = z.object({
     name: z.string().trim().min(1, "Informe o nome").max(50, "O nome deve ter no máximo 50 caracteres").optional(),
-    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor em formato hexadecimal inválido (#RRGGBB)").optional(),
+    color: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/, "Cor em formato hexadecimal inválido (#RRGGBB)")
+        .optional(),
     icon: z.string().trim().max(50, "Nome do ícone inválido").nullable().optional(),
+});
+
+export const locationCreateSchema = z.object({
+    name: z.string({ message: "Informe o nome da localidade" }).trim().min(1, "Informe o nome da localidade").max(100, "O nome deve ter no máximo 100 caracteres"),
+});
+
+export const locationUpdateSchema = z.object({
+    name: z.string({ message: "Informe o nome da localidade" }).trim().min(1, "Informe o nome da localidade").max(100, "O nome deve ter no máximo 100 caracteres"),
 });
 
 export type LoginInput = z.input<typeof loginSchema>;
@@ -195,3 +221,5 @@ export type GeneralTagCreateInput = z.infer<typeof generalTagCreateSchema>;
 export type GeneralTagUpdateInput = z.infer<typeof generalTagUpdateSchema>;
 export type SpecificTagCreateInput = z.infer<typeof specificTagCreateSchema>;
 export type SpecificTagUpdateInput = z.infer<typeof specificTagUpdateSchema>;
+export type LocationCreateInput = z.infer<typeof locationCreateSchema>;
+export type LocationUpdateInput = z.infer<typeof locationUpdateSchema>;

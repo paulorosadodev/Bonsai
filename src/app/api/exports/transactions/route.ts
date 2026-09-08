@@ -5,12 +5,14 @@ import { amountBrl, csvResponse, serializeTags, toCsv } from "@/lib/data/csv";
 import { getRealizedRecurrences } from "@/lib/data/recurrences";
 import { getUserCategoriesMap } from "@/lib/data/categories";
 import { getUserGeneralTagsMap, getUserSpecificTagsMap } from "@/lib/data/tags";
+import { getUserLocationsMap } from "@/lib/data/locations";
+import { formatTransactionName } from "@/lib/data/types";
 import { getUserClient } from "@/lib/supabase/server";
 import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const headers = ["id", "name", "description", "amount_cents", "amount_brl", "purchase_date", "payment_method", "installment_count", "category", "specific_tag", "general_tags", "created_at", "updated_at"];
+const headers = ["id", "name", "description", "amount_cents", "amount_brl", "purchase_date", "payment_method", "installment_count", "category", "specific_tag", "general_tags", "location", "created_at", "updated_at"];
 
 type TransactionRow = {
     id: string;
@@ -23,6 +25,7 @@ type TransactionRow = {
     category_id: string;
     specific_tag_id: string | null;
     general_tag_ids: string[];
+    location_id: string | null;
     created_at: string;
     updated_at: string;
 };
@@ -47,11 +50,7 @@ export async function GET(request: NextRequest) {
         return new Response("Bad Request", { status: 400, headers: { "Cache-Control": "no-store" } });
     }
 
-    let query = supabase
-        .from("transactions")
-        .select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, specific_tag_id, general_tag_ids, created_at, updated_at")
-        .order("purchase_date", { ascending: true })
-        .order("created_at", { ascending: true });
+    let query = supabase.from("transactions").select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, specific_tag_id, general_tag_ids, location_id, created_at, updated_at").order("purchase_date", { ascending: true }).order("created_at", { ascending: true });
 
     if (parsed.data.from) {
         query = query.gte("purchase_date", parsed.data.from);
@@ -69,13 +68,7 @@ export async function GET(request: NextRequest) {
         query = query.eq("payment_method", parsed.data.paymentMethod);
     }
 
-    const [{ data, error }, recurring, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([
-        query,
-        getRealizedRecurrences(parsed.data.from, parsed.data.to),
-        getUserCategoriesMap(supabase, user.id),
-        getUserGeneralTagsMap(supabase, user.id),
-        getUserSpecificTagsMap(supabase, user.id),
-    ]);
+    const [{ data, error }, recurring, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([query, getRealizedRecurrences(parsed.data.from, parsed.data.to), getUserCategoriesMap(supabase, user.id), getUserGeneralTagsMap(supabase, user.id), getUserSpecificTagsMap(supabase, user.id), getUserLocationsMap(supabase, user.id)]);
 
     if (error) {
         return new Response("Error", { status: 500, headers: { "Cache-Control": "no-store" } });
@@ -86,9 +79,7 @@ export async function GET(request: NextRequest) {
         return tag?.name.toLowerCase() === "reembolso" || tag?.name.toLowerCase() === "reimbursement";
     };
 
-    const standalones = ((data ?? []) as TransactionRow[]).filter((row) =>
-        parsed.data.includeReimbursements || !(row.general_tag_ids ?? []).some(isReimbursementTag)
-    );
+    const standalones = ((data ?? []) as TransactionRow[]).filter((row) => parsed.data.includeReimbursements || !(row.general_tag_ids ?? []).some(isReimbursementTag));
 
     const recurrences = recurring.filter((occurrence) => {
         if (parsed.data.from && occurrence.occurrenceDate < parsed.data.from) {
@@ -111,40 +102,16 @@ export async function GET(request: NextRequest) {
     });
 
     const getCatName = (id: string) => categoriesMap.get(id)?.name ?? id;
-    const getSpecName = (id: string | null) => (id ? specificTagsMap.get(id)?.name ?? id : null);
+    const getSpecName = (id: string | null) => (id ? (specificTagsMap.get(id)?.name ?? id) : null);
     const getGenNames = (ids: string[]) => ids.map((id) => generalTagsMap.get(id)?.name ?? id);
+    const getLocName = (id: string | null) => (id ? (locationsMap.get(id)?.name ?? null) : null);
 
     const rows = [
-        ...standalones.map((row) => [
-            row.id,
-            row.name,
-            row.description,
-            row.amount_cents,
-            amountBrl(row.amount_cents),
-            row.purchase_date,
-            row.payment_method,
-            row.installment_count,
-            getCatName(row.category_id),
-            getSpecName(row.specific_tag_id),
-            serializeTags(getGenNames(row.general_tag_ids ?? [])),
-            row.created_at,
-            row.updated_at,
-        ] as Array<string | number | null>),
-        ...recurrences.map((occurrence) => [
-            occurrenceKey(occurrence.seriesId, occurrence.occurrenceDate),
-            occurrence.name,
-            occurrence.description,
-            occurrence.amountCents,
-            amountBrl(occurrence.amountCents),
-            occurrence.occurrenceDate,
-            occurrence.paymentMethod,
-            1,
-            getCatName(occurrence.categoryId),
-            getSpecName(occurrence.specificTagId),
-            serializeTags(getGenNames(occurrence.generalTagIds ?? [])),
-            occurrence.occurrenceDate,
-            occurrence.occurrenceDate,
-        ] as Array<string | number | null>),
+        ...standalones.map((row) => {
+            const locName = getLocName(row.location_id);
+            return [row.id, formatTransactionName(row.name, locName ? { name: locName } : null), row.description, row.amount_cents, amountBrl(row.amount_cents), row.purchase_date, row.payment_method, row.installment_count, getCatName(row.category_id), getSpecName(row.specific_tag_id), serializeTags(getGenNames(row.general_tag_ids ?? [])), locName, row.created_at, row.updated_at] as Array<string | number | null>;
+        }),
+        ...recurrences.map((occurrence) => [occurrenceKey(occurrence.seriesId, occurrence.occurrenceDate), occurrence.name, occurrence.description, occurrence.amountCents, amountBrl(occurrence.amountCents), occurrence.occurrenceDate, occurrence.paymentMethod, 1, getCatName(occurrence.categoryId), getSpecName(occurrence.specificTagId), serializeTags(getGenNames(occurrence.generalTagIds ?? [])), null, occurrence.occurrenceDate, occurrence.occurrenceDate] as Array<string | number | null>),
     ].sort((a, b) => String(a[5]).localeCompare(String(b[5])) || String(a[1]).localeCompare(String(b[1])));
 
     return csvResponse("bonsai-transacoes.csv", toCsv(headers, rows));

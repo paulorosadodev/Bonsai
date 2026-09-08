@@ -8,12 +8,14 @@ import { logout } from "@/actions/auth";
 import { saveSettings } from "@/actions/settings";
 import { settingsSchema } from "@/lib/domain/schemas";
 import type { CategoryOption, GeneralTagOption, SpecificTagOption } from "@/lib/domain/catalog";
+import type { LocationOption } from "@/lib/data/locations";
 import type { CycleSettings } from "@/lib/data/types";
 import { buttonClassName, Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { CategoryManager } from "./category-manager";
 import { GeneralTagManager } from "./general-tag-manager";
+import { LocationManager } from "./location-manager";
 
 const days = Array.from({ length: 28 }, (_, index) => index + 1);
 
@@ -22,14 +24,10 @@ interface SettingsPanelProps {
     categories?: CategoryOption[];
     generalTags?: GeneralTagOption[];
     specificTags?: SpecificTagOption[];
+    locations?: LocationOption[];
 }
 
-export function SettingsPanel({
-    settings,
-    categories = [],
-    generalTags = [],
-    specificTags = [],
-}: SettingsPanelProps) {
+export function SettingsPanel({ settings, categories = [], generalTags = [], specificTags = [], locations = [] }: SettingsPanelProps) {
     const router = useRouter();
     const {
         control,
@@ -67,30 +65,14 @@ export function SettingsPanel({
                     })}
                     noValidate
                 >
-                    <Select
-                        id="closingDay"
-                        name="closingDay"
-                        label="Dia de Fechamento"
-                        hint="Padrão: 14"
-                        error={errors.closingDay?.message}
-                        value={String(closingDay)}
-                        onChange={(val) => setValue("closingDay", Number(val), { shouldValidate: true })}
-                    >
+                    <Select id="closingDay" name="closingDay" label="Dia de Fechamento" hint="Padrão: 14" error={errors.closingDay?.message} value={String(closingDay)} onChange={(val) => setValue("closingDay", Number(val), { shouldValidate: true })}>
                         {days.map((day) => (
                             <option key={day} value={String(day)}>
                                 {day}
                             </option>
                         ))}
                     </Select>
-                    <Select
-                        id="dueDay"
-                        name="dueDay"
-                        label="Dia de Vencimento"
-                        hint="Padrão: 20"
-                        error={errors.dueDay?.message}
-                        value={String(dueDay)}
-                        onChange={(val) => setValue("dueDay", Number(val), { shouldValidate: true })}
-                    >
+                    <Select id="dueDay" name="dueDay" label="Dia de Vencimento" hint="Padrão: 20" error={errors.dueDay?.message} value={String(dueDay)} onChange={(val) => setValue("dueDay", Number(val), { shouldValidate: true })}>
                         {days.map((day) => (
                             <option key={day} value={String(day)}>
                                 {day}
@@ -112,6 +94,11 @@ export function SettingsPanel({
             {/* General Tags Card */}
             <Card className="flex flex-col gap-4">
                 <GeneralTagManager generalTags={generalTags} />
+            </Card>
+
+            {/* Locations Card */}
+            <Card className="flex flex-col gap-4">
+                <LocationManager locations={locations} />
             </Card>
 
             {/* CSV Export Card */}

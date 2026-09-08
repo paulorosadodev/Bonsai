@@ -76,8 +76,8 @@ export function isFinancePath(pathname: string) {
     return pathname === "/" || pathname.startsWith("/invoice");
 }
 
-export function financeSearchHref(path: string, searchParams: Pick<URLSearchParams, "get">) {
-    const month = searchParams.get("month");
+export function financeSearchHref(path: string, searchParams: Pick<URLSearchParams, "get">, preserveMonth = false) {
+    const month = preserveMonth ? searchParams.get("month") : undefined;
     return searchHref(path, {
         month: month && isMonth(month) ? month : undefined,
         includeReimbursements: searchParams.get("includeReimbursements") === "true",
@@ -108,8 +108,25 @@ export function parseTransactionListParams(searchParams: Record<string, string |
 }
 
 export function parseInvoiceListParams(searchParams: Record<string, string | string[] | undefined>) {
+    const rawMonth = readParam(searchParams, "month");
+    const month = rawMonth && isMonth(rawMonth) ? rawMonth : undefined;
+    const category = readParam(searchParams, "category") || undefined;
+    const paymentValue = readParam(searchParams, "paymentMethod");
+    const paymentMethod = paymentValue && (paymentMethods as readonly string[]).includes(paymentValue) ? (paymentValue as PaymentMethod) : undefined;
+    const generalTag = readParam(searchParams, "generalTag") || undefined;
+    const specificTag = readParam(searchParams, "specificTag") || undefined;
+    const search = readParam(searchParams, "search")?.trim() || undefined;
+    const sortValue = readParam(searchParams, "sort");
+    const sort: TransactionSort = sortValue === "date_asc" || sortValue === "amount_desc" || sortValue === "amount_asc" ? sortValue : "date_desc";
+
     return {
-        ...parseTransactionListParams(searchParams),
+        month,
+        category,
+        paymentMethod,
+        generalTag,
+        specificTag,
+        search,
+        sort,
         includeReimbursements: parseIncludeReimbursements(searchParams),
     };
 }
@@ -120,4 +137,3 @@ export function parseDashboardListParams(searchParams: Record<string, string | s
         includeReimbursements: parseIncludeReimbursements(searchParams),
     };
 }
-

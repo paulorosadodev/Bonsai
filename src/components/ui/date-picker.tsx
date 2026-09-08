@@ -49,23 +49,7 @@ export type DatePickerProps = {
     className?: string;
 };
 
-export function DatePicker({
-    id: explicitId,
-    name,
-    label,
-    value: controlledValue,
-    defaultValue,
-    onChange,
-    error,
-    hint,
-    min,
-    max,
-    today: propToday,
-    disabled = false,
-    clearable = false,
-    placeholder,
-    className,
-}: DatePickerProps) {
+export function DatePicker({ id: explicitId, name, label, value: controlledValue, defaultValue, onChange, error, hint, min, max, today: propToday, disabled = false, clearable = false, placeholder, className }: DatePickerProps) {
     const generatedId = useId();
     const id = explicitId ?? generatedId;
     const today = propToday ?? getTodayCivil();
@@ -266,9 +250,7 @@ export function DatePicker({
             >
                 <div className="flex items-center gap-2.5">
                     <CalendarIcon className="size-4 shrink-0 text-orchid transition-colors group-hover:text-violet" aria-hidden />
-                    <span className={cn("font-medium", !selectedValue && "text-muted")}>
-                        {selectedValue ? formatToBr(selectedValue) : (placeholder ?? "Selecionar data")}
-                    </span>
+                    <span className={cn("font-medium", !selectedValue && "text-muted")}>{selectedValue ? formatToBr(selectedValue) : (placeholder ?? "Selecionar data")}</span>
                     {relativeLabel ? <span className="rounded-md bg-surface-raised px-1.5 py-0.5 text-[11px] font-semibold text-orchid border border-violet/20">{relativeLabel}</span> : null}
                 </div>
 

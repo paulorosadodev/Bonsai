@@ -44,7 +44,7 @@ export function BottomNav() {
         <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-orchid/50 bg-surface shadow-[0_-16px_40px_rgb(8_5_16/0.85),inset_0_1px_0_rgb(216_180_254/0.28)] pb-[env(safe-area-inset-bottom,0px)]">
             <div className="mx-auto grid h-18 max-w-lg grid-cols-5">
                 {leftTabs.map((tab) => (
-                    <NavTab key={tab.href} href={carryFinanceQuery ? financeSearchHref(tab.href, searchParams) : tab.href} label={tab.label} icon={tab.icon} current={tab.match(pathname)} />
+                    <NavTab key={tab.href} href={carryFinanceQuery ? financeSearchHref(tab.href, searchParams, tab.match(pathname)) : tab.href} label={tab.label} icon={tab.icon} current={tab.match(pathname)} />
                 ))}
                 <Link href="/transactions/new" aria-label="Adicionar transação" aria-current={isAdd(pathname) ? "page" : undefined} className="relative flex min-h-11 flex-col items-center justify-end pb-2 text-[11px] font-medium text-muted">
                     <span className="absolute bottom-7 flex size-14 items-center justify-center rounded-full bg-violet text-ink ring-[5px] ring-ink shadow-[0_8px_24px_rgb(167_139_250/0.35)]">

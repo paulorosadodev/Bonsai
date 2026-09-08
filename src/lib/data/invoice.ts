@@ -1,15 +1,16 @@
 import type { z } from "zod";
-import { toSaoPauloCivilDate } from "@/lib/domain/billing-cycle";
+import { getOpenInvoiceMonth, toSaoPauloCivilDate } from "@/lib/domain/billing-cycle";
 import { occurrenceKey } from "@/lib/domain/recurrence";
 import { transactionFiltersSchema } from "@/lib/domain/schemas";
 import { requireUser } from "@/lib/supabase/server";
-import { currentMonth, dueDateForMonth, monthEnd, monthStart, shiftCalendarMonth } from "./month";
+import { dueDateForMonth, monthEnd, monthStart, shiftCalendarMonth } from "./month";
 import { getSettings } from "./settings";
 import { getUserCategoriesMap } from "./categories";
 import { getUserGeneralTagsMap, getUserSpecificTagsMap } from "./tags";
+import { getUserLocationsMap } from "./locations";
 import { hasReimbursement } from "./entries";
 import { loadRecurrenceStateFrom, projectLoadedRecurrences } from "./recurrences";
-import type { InvoiceData, InvoiceListItem, TagInfo } from "./types";
+import { formatTransactionName, type InvoiceData, type InvoiceListItem, type TagInfo } from "./types";
 
 function normalizeSearchText(text: string) {
     return text
@@ -31,6 +32,7 @@ type InvoiceRow = {
         category_id: string;
         specific_tag_id: string | null;
         general_tag_ids: string[];
+        location_id: string | null;
         purchase_date: string;
         payment_method: string;
     } | null;
@@ -38,20 +40,21 @@ type InvoiceRow = {
 
 export async function getInvoice(filters: z.input<typeof transactionFiltersSchema> = {}): Promise<InvoiceData> {
     const parsed = transactionFiltersSchema.parse(filters);
-    const month = parsed.month ?? currentMonth();
+    const today = toSaoPauloCivilDate(new Date());
+    const settings = await getSettings();
+    const month = parsed.month ?? getOpenInvoiceMonth(today, settings.closingDay, settings.dueDay);
     const prevMonth = shiftCalendarMonth(month, -1);
     const competence = monthStart(month);
     const prevCompetence = monthStart(prevMonth);
-    const today = toSaoPauloCivilDate(new Date());
     const { supabase, user } = await requireUser();
 
-    const [settings, entriesResult, recurrence, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([
-        getSettings(),
-        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, category_id, specific_tag_id, general_tag_ids, purchase_date, payment_method)").in("competence_date", [prevCompetence, competence]).not("invoice_due_date", "is", null).order("invoice_due_date", { ascending: true }),
+    const [entriesResult, recurrence, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([
+        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method)").in("competence_date", [prevCompetence, competence]).not("invoice_due_date", "is", null).order("invoice_due_date", { ascending: true }),
         loadRecurrenceStateFrom(supabase),
         getUserCategoriesMap(supabase, user.id),
         getUserGeneralTagsMap(supabase, user.id),
         getUserSpecificTagsMap(supabase, user.id),
+        getUserLocationsMap(supabase, user.id),
     ]);
 
     if (entriesResult.error) {
@@ -121,17 +124,20 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
 
                 const spec = tx.specific_tag_id ? specificTagsMap.get(tx.specific_tag_id) : null;
                 const specificTag: TagInfo | null = spec ? { id: spec.id, name: spec.name, color: spec.color, icon: spec.icon ?? null } : null;
+                const loc = tx.location_id ? (locationsMap.get(tx.location_id) ?? null) : null;
 
                 return {
                     id: row.id,
                     transactionId: row.transaction_id,
-                    name: tx.name,
+                    name: formatTransactionName(tx.name, loc),
                     categoryId: tx.category_id,
                     category: cat,
                     specificTagId: tx.specific_tag_id,
                     specificTag,
                     generalTagIds: tx.general_tag_ids ?? [],
                     generalTags,
+                    locationId: tx.location_id,
+                    location: loc,
                     installmentNumber: row.installment_number,
                     installmentCount: row.installment_count,
                     amountCents: row.amount_cents,

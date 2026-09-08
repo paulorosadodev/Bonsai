@@ -5,10 +5,11 @@ import { transactionFiltersSchema } from "@/lib/domain/schemas";
 import { requireUser } from "@/lib/supabase/server";
 import { getUserCategoriesMap } from "./categories";
 import { getUserGeneralTagsMap, getUserSpecificTagsMap } from "./tags";
+import { getUserLocationsMap } from "./locations";
 import { hasReimbursement } from "./entries";
 import { monthEnd, monthStart, nextMonthStart } from "./month";
 import { projectRecurrences, recurrenceListItem } from "./recurrences";
-import type { TagInfo, TransactionDetail, TransactionEntryRecord, TransactionListData, TransactionListItem, TransactionRecord } from "./types";
+import { formatTransactionName, type TagInfo, type TransactionDetail, type TransactionEntryRecord, type TransactionListData, type TransactionListItem, type TransactionRecord } from "./types";
 
 type TransactionRow = {
     id: string;
@@ -21,6 +22,7 @@ type TransactionRow = {
     category_id: string;
     general_tag_ids: string[];
     specific_tag_id: string | null;
+    location_id: string | null;
     created_at: string;
     updated_at: string;
 };
@@ -35,12 +37,7 @@ type EntryRow = {
     invoice_due_date: string | null;
 };
 
-function mapTransaction(
-    row: TransactionRow,
-    categoriesMap: Map<string, { id: string; name: string; color: string; icon: string }>,
-    generalTagsMap: Map<string, { id: string; name: string; color: string; icon?: string | null }>,
-    specificTagsMap: Map<string, { id: string; name: string; color: string; icon?: string | null }>
-): TransactionRecord {
+function mapTransaction(row: TransactionRow, categoriesMap: Map<string, { id: string; name: string; color: string; icon: string }>, generalTagsMap: Map<string, { id: string; name: string; color: string; icon?: string | null }>, specificTagsMap: Map<string, { id: string; name: string; color: string; icon?: string | null }>, locationsMap: Map<string, { id: string; name: string }>): TransactionRecord {
     const cat = categoriesMap.get(row.category_id) ?? {
         id: row.category_id,
         name: "Categoria",
@@ -56,6 +53,8 @@ function mapTransaction(
     const spec = row.specific_tag_id ? specificTagsMap.get(row.specific_tag_id) : null;
     const specificTag: TagInfo | null = spec ? { id: spec.id, name: spec.name, color: spec.color, icon: spec.icon ?? null } : null;
 
+    const loc = row.location_id ? (locationsMap.get(row.location_id) ?? null) : null;
+
     return {
         id: row.id,
         name: row.name,
@@ -70,6 +69,8 @@ function mapTransaction(
         generalTags,
         specificTagId: row.specific_tag_id,
         specificTag,
+        locationId: row.location_id,
+        location: loc,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     };
@@ -92,11 +93,7 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
     const { supabase, user } = await requireUser();
     const today = toSaoPauloCivilDate(new Date());
 
-    let query = supabase
-        .from("transactions")
-        .select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, created_at, updated_at")
-        .order("purchase_date", { ascending: false })
-        .order("created_at", { ascending: false });
+    let query = supabase.from("transactions").select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, location_id, created_at, updated_at").order("purchase_date", { ascending: false }).order("created_at", { ascending: false });
 
     if (parsed.month) {
         query = query.gte("purchase_date", monthStart(parsed.month)).lt("purchase_date", nextMonthStart(parsed.month));
@@ -119,24 +116,18 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
     }
 
     const month = parsed.month;
-    const [result, projected, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([
-        query,
-        month ? projectRecurrences(monthStart(month), monthEnd(month), today) : projectRecurrences("1970-01-01", today, today),
-        getUserCategoriesMap(supabase, user.id),
-        getUserGeneralTagsMap(supabase, user.id),
-        getUserSpecificTagsMap(supabase, user.id),
-    ]);
+    const [result, projected, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([query, month ? projectRecurrences(monthStart(month), monthEnd(month), today) : projectRecurrences("1970-01-01", today, today), getUserCategoriesMap(supabase, user.id), getUserGeneralTagsMap(supabase, user.id), getUserSpecificTagsMap(supabase, user.id), getUserLocationsMap(supabase, user.id)]);
 
     if (result.error) {
         throw new Error("Não foi possível carregar as transações");
     }
 
     const standalones: TransactionListItem[] = (result.data as TransactionRow[])
-        .map((row) => mapTransaction(row, categoriesMap, generalTagsMap, specificTagsMap))
+        .map((row) => mapTransaction(row, categoriesMap, generalTagsMap, specificTagsMap, locationsMap))
         .filter((transaction) => parsed.includeReimbursements || !hasReimbursement(transaction.generalTags))
         .map((transaction) => ({
             key: transaction.id,
-            name: transaction.name,
+            name: formatTransactionName(transaction.name, transaction.location),
             description: transaction.description,
             amountCents: transaction.amountCents,
             purchaseDate: transaction.purchaseDate,
@@ -148,6 +139,8 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
             generalTags: transaction.generalTags,
             specificTagId: transaction.specificTagId,
             specificTag: transaction.specificTag,
+            locationId: transaction.locationId,
+            location: transaction.location,
             isRecurring: false,
             isForecast: false,
             editHref: `/transactions/${transaction.id}/edit`,
@@ -173,9 +166,7 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
                 return false;
             }
 
-            const generalTagObjects = occurrence.generalTagIds
-                .map((id) => generalTagsMap.get(id))
-                .filter(Boolean);
+            const generalTagObjects = occurrence.generalTagIds.map((id) => generalTagsMap.get(id)).filter(Boolean);
 
             return parsed.includeReimbursements || !hasReimbursement(generalTagObjects as Array<{ name?: string }>);
         })
@@ -222,26 +213,13 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
 
 export async function getTransaction(id: string): Promise<TransactionDetail | null> {
     const { supabase, user } = await requireUser();
-    const [
-        { data: transaction, error: transactionError },
-        { data: entries, error: entriesError },
-        categoriesMap,
-        generalTagsMap,
-        specificTagsMap
-    ] = await Promise.all([
-        supabase
-            .from("transactions")
-            .select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, created_at, updated_at")
-            .eq("id", id)
-            .maybeSingle(),
-        supabase
-            .from("transaction_entries")
-            .select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date")
-            .eq("transaction_id", id)
-            .order("installment_number", { ascending: true }),
+    const [{ data: transaction, error: transactionError }, { data: entries, error: entriesError }, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([
+        supabase.from("transactions").select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, location_id, created_at, updated_at").eq("id", id).maybeSingle(),
+        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date").eq("transaction_id", id).order("installment_number", { ascending: true }),
         getUserCategoriesMap(supabase, user.id),
         getUserGeneralTagsMap(supabase, user.id),
         getUserSpecificTagsMap(supabase, user.id),
+        getUserLocationsMap(supabase, user.id),
     ]);
 
     if (transactionError || entriesError) {
@@ -253,7 +231,7 @@ export async function getTransaction(id: string): Promise<TransactionDetail | nu
     }
 
     return {
-        ...mapTransaction(transaction as TransactionRow, categoriesMap, generalTagsMap, specificTagsMap),
+        ...mapTransaction(transaction as TransactionRow, categoriesMap, generalTagsMap, specificTagsMap, locationsMap),
         entries: (entries as EntryRow[]).map(mapEntry),
     };
 }

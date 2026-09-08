@@ -2,16 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import {
-    generalTagCreateSchema,
-    generalTagUpdateSchema,
-    specificTagCreateSchema,
-    specificTagUpdateSchema,
-    type GeneralTagCreateInput,
-    type GeneralTagUpdateInput,
-    type SpecificTagCreateInput,
-    type SpecificTagUpdateInput,
-} from "@/lib/domain/schemas";
+import { generalTagCreateSchema, generalTagUpdateSchema, specificTagCreateSchema, specificTagUpdateSchema, type GeneralTagCreateInput, type GeneralTagUpdateInput, type SpecificTagCreateInput, type SpecificTagUpdateInput } from "@/lib/domain/schemas";
 import { requireUser } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import { fromZodError, genericDeleteError, genericSaveError, type ActionResult } from "./result";
@@ -19,12 +10,14 @@ import { fromZodError, genericDeleteError, genericSaveError, type ActionResult }
 const idSchema = z.string().uuid();
 
 function slugify(name: string): string {
-    return name
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "") || "tag";
+    return (
+        name
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]+/g, "_")
+            .replace(/^_+|_+$/g, "") || "tag"
+    );
 }
 
 function revalidateFinance() {
@@ -83,13 +76,7 @@ export async function updateGeneralTag(id: string, input: GeneralTagUpdateInput)
     if (parsed.data.color !== undefined) updateData.color = parsed.data.color;
     if (parsed.data.icon !== undefined) updateData.icon = parsed.data.icon ?? undefined;
 
-    const { data, error } = await supabase
-        .from("user_general_tags")
-        .update(updateData)
-        .eq("id", idParsed.data)
-        .eq("user_id", user.id)
-        .select("id")
-        .maybeSingle();
+    const { data, error } = await supabase.from("user_general_tags").update(updateData).eq("id", idParsed.data).eq("user_id", user.id).select("id").maybeSingle();
 
     if (error || !data) {
         if (error?.code === "23505") {
@@ -112,13 +99,7 @@ export async function deleteGeneralTag(id: string): Promise<ActionResult> {
     const { supabase, user } = await requireUser();
 
     // Delete the tag from user_general_tags
-    const { data, error } = await supabase
-        .from("user_general_tags")
-        .delete()
-        .eq("id", idParsed.data)
-        .eq("user_id", user.id)
-        .select("id")
-        .maybeSingle();
+    const { data, error } = await supabase.from("user_general_tags").delete().eq("id", idParsed.data).eq("user_id", user.id).select("id").maybeSingle();
 
     if (error || !data) {
         return { ok: false, error: genericDeleteError };
@@ -181,13 +162,7 @@ export async function updateSpecificTag(id: string, input: SpecificTagUpdateInpu
     if (parsed.data.color !== undefined) updateData.color = parsed.data.color;
     if (parsed.data.icon !== undefined) updateData.icon = parsed.data.icon ?? undefined;
 
-    const { data, error } = await supabase
-        .from("user_specific_tags")
-        .update(updateData)
-        .eq("id", idParsed.data)
-        .eq("user_id", user.id)
-        .select("id")
-        .maybeSingle();
+    const { data, error } = await supabase.from("user_specific_tags").update(updateData).eq("id", idParsed.data).eq("user_id", user.id).select("id").maybeSingle();
 
     if (error || !data) {
         if (error?.code === "23505") {
@@ -208,13 +183,7 @@ export async function deleteSpecificTag(id: string): Promise<ActionResult> {
     }
 
     const { supabase, user } = await requireUser();
-    const { data, error } = await supabase
-        .from("user_specific_tags")
-        .delete()
-        .eq("id", idParsed.data)
-        .eq("user_id", user.id)
-        .select("id")
-        .maybeSingle();
+    const { data, error } = await supabase.from("user_specific_tags").delete().eq("id", idParsed.data).eq("user_id", user.id).select("id").maybeSingle();
 
     if (error || !data) {
         return { ok: false, error: genericDeleteError };

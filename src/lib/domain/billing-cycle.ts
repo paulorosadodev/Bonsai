@@ -182,3 +182,89 @@ export function createBillingEntries(input: BillingCycleInput): BillingEntry[] {
         };
     });
 }
+
+export function civilDaysDifference(fromDate: CivilDate, toDate: CivilDate): number {
+    const { year: y1, month: m1, day: d1 } = parseCivilDate(fromDate);
+    const { year: y2, month: m2, day: d2 } = parseCivilDate(toDate);
+    const utc1 = Date.UTC(y1, m1 - 1, d1);
+    const utc2 = Date.UTC(y2, m2 - 1, d2);
+    return Math.round((utc2 - utc1) / (1000 * 60 * 60 * 24));
+}
+
+export function getOpenInvoiceMonth(today: CivilDate, closingDay: number, dueDay: number): string {
+    return getPurchaseInvoiceCycle(today, closingDay, dueDay).dueDate.slice(0, 7);
+}
+
+export type LiveBillingCycleKind = "open" | "closing_today" | "closed_pending_payment" | "due_today";
+
+export type LiveBillingCycleState = {
+    today: CivilDate;
+    kind: LiveBillingCycleKind;
+    // Fatura atualmente aberta para novas compras
+    openMonth: string;
+    openClosingDate: CivilDate;
+    openDueDate: CivilDate;
+    daysUntilClosing: number;
+    daysUntilOpenDue: number;
+    // Fechamento anterior (início das compras da fatura aberta)
+    prevClosingDate: CivilDate;
+    cycleProgressPct: number;
+    // Fatura anterior (fechada recentemente, relevante quando aguarda pagamento)
+    prevMonth: string;
+    prevClosingDateForPayment: CivilDate;
+    prevDueDate: CivilDate;
+    daysUntilPrevDue: number;
+};
+
+export function getLiveBillingCycleState(today: CivilDate, closingDay: number, dueDay: number): LiveBillingCycleState {
+    assertCycleDay(closingDay);
+    assertCycleDay(dueDay);
+
+    const openCycle = getPurchaseInvoiceCycle(today, closingDay, dueDay);
+    const openClosingDate = openCycle.closingDate;
+    const openDueDate = openCycle.dueDate;
+    const openMonth = openDueDate.slice(0, 7);
+
+    // Ciclo anterior
+    const openClosingParts = parseCivilDate(openClosingDate);
+    const prevCycleMonth = addMonths(openClosingParts.year, openClosingParts.month, -1);
+    const prevClosingDate = occurrenceDateInMonth(prevCycleMonth.year, prevCycleMonth.month, closingDay);
+
+    const prevDueMonth = addMonths(prevCycleMonth.year, prevCycleMonth.month, dueDay <= closingDay ? 1 : 0);
+    const prevDueDate = occurrenceDateInMonth(prevDueMonth.year, prevDueMonth.month, dueDay);
+    const prevMonth = prevDueDate.slice(0, 7);
+
+    const daysUntilClosing = civilDaysDifference(today, openClosingDate);
+    const daysUntilOpenDue = civilDaysDifference(today, openDueDate);
+    const daysUntilPrevDue = civilDaysDifference(today, prevDueDate);
+
+    const totalCycleDays = Math.max(1, civilDaysDifference(prevClosingDate, openClosingDate));
+    const elapsedCycleDays = civilDaysDifference(prevClosingDate, today);
+    const cycleProgressPct = Math.min(100, Math.max(0, Math.round((elapsedCycleDays / totalCycleDays) * 100)));
+
+    let kind: LiveBillingCycleKind = "open";
+
+    if (today === prevClosingDate) {
+        kind = "closing_today";
+    } else if (today === prevDueDate) {
+        kind = "due_today";
+    } else if (today > prevClosingDate && today < prevDueDate) {
+        kind = "closed_pending_payment";
+    }
+
+    return {
+        today,
+        kind,
+        openMonth,
+        openClosingDate,
+        openDueDate,
+        daysUntilClosing,
+        daysUntilOpenDue,
+        prevClosingDate,
+        cycleProgressPct,
+        prevMonth,
+        prevClosingDateForPayment: prevClosingDate,
+        prevDueDate,
+        daysUntilPrevDue,
+    };
+}

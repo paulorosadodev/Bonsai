@@ -128,18 +128,10 @@ assert.equal(previousCivilDate("2026-12-16"), "2026-12-15");
 assert.equal(previousCivilDate("2027-01-01"), "2026-12-31");
 
 // Test recurrence with inclusive end date mapped via nextCivilDate
-const endsOnDec15 = projectSeriesOccurrences(
-    { ...series, endsBefore: nextCivilDate("2026-10-15") },
-    versions,
-    settingsHistory,
-    "2026-08-01",
-    "2026-12-31",
-    "2026-08-10",
-    fallback
-);
+const endsOnDec15 = projectSeriesOccurrences({ ...series, endsBefore: nextCivilDate("2026-10-15") }, versions, settingsHistory, "2026-08-01", "2026-12-31", "2026-08-10", fallback);
 assert.deepEqual(
     endsOnDec15.map((item) => item.occurrenceDate),
-    ["2026-08-15", "2026-09-15", "2026-10-15"]
+    ["2026-08-15", "2026-09-15", "2026-10-15"],
 );
 
 // Test transactionSchema validation for recurringEndDate
@@ -186,4 +178,3 @@ const invalidEndDateBeforeStart = transactionSchema.safeParse({
     specificTag: null,
 });
 assert.equal(invalidEndDateBeforeStart.success, false);
-

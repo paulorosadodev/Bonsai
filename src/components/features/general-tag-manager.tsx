@@ -108,15 +108,9 @@ export function GeneralTagManager({ generalTags }: GeneralTagManagerProps) {
             <div className="flex items-center justify-between gap-4">
                 <div>
                     <h2 className="text-lg font-bold text-text">Tags Gerais</h2>
-                    <p className="text-xs text-muted">
-                        Tags transversais aplicáveis a qualquer despesa (ex: Reembolso, Família, Amigos)
-                    </p>
+                    <p className="text-xs text-muted">Tags transversais aplicáveis a qualquer despesa (ex: Reembolso, Família, Amigos)</p>
                 </div>
-                <button
-                    type="button"
-                    onClick={openCreate}
-                    className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95"
-                >
+                <button type="button" onClick={openCreate} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95">
                     <Plus className="size-4 shrink-0" aria-hidden />
                     Nova Tag Geral
                 </button>
@@ -139,27 +133,15 @@ export function GeneralTagManager({ generalTags }: GeneralTagManagerProps) {
             ) : (
                 <div className="flex flex-col gap-2">
                     {generalTags.map((tag) => (
-                        <div
-                            key={tag.id}
-                            className="group flex w-full items-center justify-between rounded-2xl bg-surface-raised p-3.5 transition-colors hover:bg-surface-raised/80"
-                        >
+                        <div key={tag.id} className="group flex w-full items-center justify-between rounded-2xl bg-surface-raised p-3.5 transition-colors hover:bg-surface-raised/80">
                             <div className="flex items-center gap-3">
-                                <div
-                                    className="flex size-9 shrink-0 items-center justify-center rounded-xl shadow-inner"
-                                    style={{ backgroundColor: `${tag.color}25`, color: tag.color }}
-                                >
+                                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl shadow-inner" style={{ backgroundColor: `${tag.color}25`, color: tag.color }}>
                                     <DynamicIcon name={tag.icon} className="size-4.5" />
                                 </div>
                                 <span className="text-sm font-semibold text-text">{tag.name}</span>
                             </div>
                             <div className="flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => openEdit(tag)}
-                                    className="rounded-xl p-2 text-muted transition-colors hover:bg-surface hover:text-text"
-                                    title="Editar tag geral"
-                                    aria-label={`Editar tag ${tag.name}`}
-                                >
+                                <button type="button" onClick={() => openEdit(tag)} className="rounded-xl p-2 text-muted transition-colors hover:bg-surface hover:text-text" title="Editar tag geral" aria-label={`Editar tag ${tag.name}`}>
                                     <Pencil className="size-3.5" aria-hidden />
                                 </button>
                                 <button
@@ -184,12 +166,7 @@ export function GeneralTagManager({ generalTags }: GeneralTagManagerProps) {
             )}
 
             {/* --- Modal: Create / Edit General Tag --- */}
-            <Modal
-                open={modalOpen}
-                onClose={() => setModalOpen(false)}
-                title={modalMode === "create" ? "Nova Tag Geral" : "Editar Tag Geral"}
-                description="Tags gerais podem ser combinadas com qualquer categoria e tag específica."
-            >
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={modalMode === "create" ? "Nova Tag Geral" : "Editar Tag Geral"} description="Tags gerais podem ser combinadas com qualquer categoria e tag específica.">
                 <form onSubmit={handleSave} className="flex flex-col gap-4">
                     {modalError && (
                         <div className="flex items-center gap-2 rounded-xl bg-danger/15 p-3 text-xs text-danger-fg">
@@ -200,42 +177,18 @@ export function GeneralTagManager({ generalTags }: GeneralTagManagerProps) {
 
                     <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-text">Nome da Tag Geral</label>
-                        <input
-                            type="text"
-                            placeholder="Ex: Reembolso, Família, Viagem..."
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            required
-                            maxLength={50}
-                            className="rounded-xl bg-surface px-3.5 py-2.5 text-sm text-text outline-none focus:ring-1 focus:ring-violet"
-                            autoFocus
-                        />
+                        <input type="text" placeholder="Ex: Reembolso, Família, Viagem..." value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} className="rounded-xl bg-surface px-3.5 py-2.5 text-sm text-text outline-none focus:ring-1 focus:ring-violet" autoFocus />
                     </div>
 
                     <ColorPicker value={color} onChange={setColor} label="Cor da Tag" />
 
-                    <IconPicker
-                        value={icon}
-                        onChange={setIcon}
-                        color={color}
-                        label="Ícone da Tag (opcional)"
-                        optional
-                    />
+                    <IconPicker value={icon} onChange={setIcon} color={color} label="Ícone da Tag (opcional)" optional />
 
                     <div className="flex items-center justify-end gap-2 pt-3">
-                        <button
-                            type="button"
-                            disabled={loading}
-                            onClick={() => setModalOpen(false)}
-                            className="rounded-xl px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface hover:text-text"
-                        >
+                        <button type="button" disabled={loading} onClick={() => setModalOpen(false)} className="rounded-xl px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface hover:text-text">
                             Cancelar
                         </button>
-                        <button
-                            type="submit"
-                            disabled={loading || !name.trim()}
-                            className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-4 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95 disabled:opacity-50"
-                        >
+                        <button type="submit" disabled={loading || !name.trim()} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-4 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95 disabled:opacity-50">
                             <Check className="size-4" aria-hidden />
                             {loading ? "Salvando..." : "Salvar Tag"}
                         </button>
@@ -244,16 +197,7 @@ export function GeneralTagManager({ generalTags }: GeneralTagManagerProps) {
             </Modal>
 
             {/* --- Confirm Delete Dialog --- */}
-            <ConfirmDialog
-                open={deleteDialog.open}
-                title={`Excluir tag geral "${deleteDialog.name}"?`}
-                description="A tag será desvinculada de transações futuras. Transações existentes preservarão seu histórico."
-                confirmLabel="Excluir"
-                cancelLabel="Cancelar"
-                pending={loading}
-                onConfirm={handleConfirmDelete}
-                onClose={() => setDeleteDialog({ open: false, id: "", name: "" })}
-            />
+            <ConfirmDialog open={deleteDialog.open} title={`Excluir tag geral "${deleteDialog.name}"?`} description="A tag será desvinculada de transações futuras. Transações existentes preservarão seu histórico." confirmLabel="Excluir" cancelLabel="Cancelar" pending={loading} onConfirm={handleConfirmDelete} onClose={() => setDeleteDialog({ open: false, id: "", name: "" })} />
         </div>
     );
 }

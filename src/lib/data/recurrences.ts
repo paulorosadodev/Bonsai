@@ -68,11 +68,7 @@ export async function loadRecurrenceState(): Promise<RecurrenceState> {
 }
 
 export async function loadRecurrenceStateFrom(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"]): Promise<RecurrenceState> {
-    const [seriesResult, versionsResult, historyResult] = await Promise.all([
-        supabase.from("recurring_series").select("id, starts_on, ends_before"),
-        supabase.from("recurring_versions").select("series_id, effective_from, monthly_day, name, description, amount_cents, payment_method, category_id, general_tag_ids, specific_tag_id"),
-        supabase.from("user_settings_history").select("effective_from, closing_day, due_day").order("effective_from", { ascending: true })
-    ]);
+    const [seriesResult, versionsResult, historyResult] = await Promise.all([supabase.from("recurring_series").select("id, starts_on, ends_before"), supabase.from("recurring_versions").select("series_id, effective_from, monthly_day, name, description, amount_cents, payment_method, category_id, general_tag_ids, specific_tag_id"), supabase.from("user_settings_history").select("effective_from, closing_day, due_day").order("effective_from", { ascending: true })]);
 
     if (seriesResult.error || versionsResult.error || historyResult.error) {
         throw new Error("Não foi possível carregar as recorrências");
@@ -102,13 +98,7 @@ export async function getRecurringOccurrence(seriesId: string, occurrenceDate: s
     const today = toSaoPauloCivilDate(new Date());
     const civil = occurrenceDate as CivilDate;
     const { supabase, user } = await requireUser();
-    const [state, settings, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([
-        loadRecurrenceStateFrom(supabase),
-        getSettings(),
-        getUserCategoriesMap(supabase, user.id),
-        getUserGeneralTagsMap(supabase, user.id),
-        getUserSpecificTagsMap(supabase, user.id),
-    ]);
+    const [state, settings, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([loadRecurrenceStateFrom(supabase), getSettings(), getUserCategoriesMap(supabase, user.id), getUserGeneralTagsMap(supabase, user.id), getUserSpecificTagsMap(supabase, user.id)]);
     const series = state.series.find((item) => item.id === seriesId);
 
     if (!series) {
@@ -157,12 +147,7 @@ export async function getRecurringOccurrence(seriesId: string, occurrenceDate: s
     };
 }
 
-export function recurrenceListItem(
-    occurrence: RecurringOccurrence,
-    categoriesMap?: Map<string, { id: string; name: string; color: string; icon: string }>,
-    generalTagsMap?: Map<string, { id: string; name: string; color: string; icon?: string | null }>,
-    specificTagsMap?: Map<string, { id: string; name: string; color: string; icon?: string | null; category_id?: string }>
-): TransactionListItem {
+export function recurrenceListItem(occurrence: RecurringOccurrence, categoriesMap?: Map<string, { id: string; name: string; color: string; icon: string }>, generalTagsMap?: Map<string, { id: string; name: string; color: string; icon?: string | null }>, specificTagsMap?: Map<string, { id: string; name: string; color: string; icon?: string | null; category_id?: string }>): TransactionListItem {
     const cat = categoriesMap?.get(occurrence.categoryId) ?? {
         id: occurrence.categoryId,
         name: "Categoria",

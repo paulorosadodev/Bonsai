@@ -37,10 +37,7 @@ export function toEntryInserts(transactionId: string, userId: string, entries: B
     }));
 }
 
-export function hasReimbursement(
-    tags: Array<string | { name?: string }> | null | undefined,
-    reimbursementTagId?: string
-): boolean {
+export function hasReimbursement(tags: Array<string | { name?: string }> | null | undefined, reimbursementTagId?: string): boolean {
     if (!tags || tags.length === 0) return false;
     return tags.some((t) => {
         if (typeof t === "string") {

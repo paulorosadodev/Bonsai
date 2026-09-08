@@ -20,9 +20,7 @@ export const recurringVisual: TransactionVisual = {
 };
 
 function toPascalCase(str: string): string {
-    return str
-        .replace(/[-_ ]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ""))
-        .replace(/^(.)/, (c) => c.toUpperCase());
+    return str.replace(/[-_ ]+(.)?/g, (_, c) => (c ? c.toUpperCase() : "")).replace(/^(.)/, (c) => c.toUpperCase());
 }
 
 export function getLucideIcon(iconName?: string | null): IconComponent {
@@ -46,15 +44,7 @@ export function getLucideIcon(iconName?: string | null): IconComponent {
     return LucideIcons.Tag;
 }
 
-export function DynamicIcon({
-    name,
-    className,
-    style,
-}: {
-    name?: string | null;
-    className?: string;
-    style?: CSSProperties;
-}) {
+export function DynamicIcon({ name, className, style }: { name?: string | null; className?: string; style?: CSSProperties }) {
     const Component = getLucideIcon(name);
     return createElement(Component, { className, style, "aria-hidden": true });
 }

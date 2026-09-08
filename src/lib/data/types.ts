@@ -20,6 +20,21 @@ export type TagInfo = {
     categoryId?: string;
 };
 
+export type LocationInfo = {
+    id: string;
+    name: string;
+};
+
+export function formatTransactionName(name: string, location?: { name: string } | null): string {
+    if (location?.name) {
+        if (name.toLowerCase() === "uber") {
+            return `Uber - ${location.name}`;
+        }
+        return `${name} - ${location.name}`;
+    }
+    return name;
+}
+
 export type DashboardCategoryTotal = {
     categoryId: string;
     name: string;
@@ -50,6 +65,8 @@ export type DashboardEntryItem = {
     specificTag: TagInfo | null;
     generalTagIds: string[];
     generalTags: TagInfo[];
+    locationId?: string | null;
+    location?: LocationInfo | null;
     isRecurring: boolean;
     isForecast: boolean;
     editHref: string;
@@ -77,6 +94,8 @@ export type InvoiceListItem = {
     specificTag: TagInfo | null;
     generalTagIds: string[];
     generalTags: TagInfo[];
+    locationId?: string | null;
+    location?: LocationInfo | null;
     installmentNumber: number;
     installmentCount: number;
     amountCents: number;
@@ -111,6 +130,8 @@ export type TransactionRecord = {
     generalTags: TagInfo[];
     specificTagId: string | null;
     specificTag: TagInfo | null;
+    locationId?: string | null;
+    location?: LocationInfo | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -129,6 +150,8 @@ export type TransactionListItem = {
     generalTags: TagInfo[];
     specificTagId: string | null;
     specificTag: TagInfo | null;
+    locationId?: string | null;
+    location?: LocationInfo | null;
     isRecurring: boolean;
     isForecast: boolean;
     editHref: string;

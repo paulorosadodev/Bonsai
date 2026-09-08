@@ -12,14 +12,7 @@ interface ModalProps {
     maxWidth?: string;
 }
 
-export function Modal({
-    open,
-    onClose,
-    title,
-    description,
-    children,
-    maxWidth = "max-w-lg",
-}: ModalProps) {
+export function Modal({ open, onClose, title, description, children, maxWidth = "max-w-lg" }: ModalProps) {
     const ref = useRef<HTMLDialogElement>(null);
 
     useEffect(() => {
@@ -58,12 +51,7 @@ export function Modal({
                             </p>
                         ) : null}
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-xl p-1.5 text-muted transition-colors hover:bg-surface hover:text-text focus-visible:outline-2 focus-visible:outline-violet"
-                        aria-label="Fechar"
-                    >
+                    <button type="button" onClick={onClose} className="rounded-xl p-1.5 text-muted transition-colors hover:bg-surface hover:text-text focus-visible:outline-2 focus-visible:outline-violet" aria-label="Fechar">
                         <X className="size-4.5" aria-hidden />
                     </button>
                 </div>

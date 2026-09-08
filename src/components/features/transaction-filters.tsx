@@ -18,14 +18,7 @@ interface TransactionFiltersProps {
     searchPlaceholder?: string;
 }
 
-export function TransactionFilters({
-    values,
-    categories = [],
-    generalTags = [],
-    specificTags = [],
-    showPaymentMethod = true,
-    searchPlaceholder,
-}: TransactionFiltersProps) {
+export function TransactionFilters({ values, categories = [], generalTags = [], specificTags = [], showPaymentMethod = true, searchPlaceholder }: TransactionFiltersProps) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -46,16 +39,19 @@ export function TransactionFilters({
         setSearchValue(values.search ?? "");
     }
 
-    const activeCriteriaCount = [
-        values.category,
-        showPaymentMethod ? values.paymentMethod : null,
-        values.generalTag,
-        values.specificTag,
-    ].filter(Boolean).length;
+    const activeCriteriaCount = [values.category, showPaymentMethod ? values.paymentMethod : null, values.generalTag, values.specificTag].filter(Boolean).length;
 
     const hasAnyActiveFilter = activeCriteriaCount > 0 || Boolean(values.search) || (values.sort && values.sort !== "date_desc");
 
     const [isExpanded, setIsExpanded] = useState(() => activeCriteriaCount > 0);
+    const [prevCriteriaCount, setPrevCriteriaCount] = useState(activeCriteriaCount);
+
+    if (activeCriteriaCount !== prevCriteriaCount) {
+        setPrevCriteriaCount(activeCriteriaCount);
+        if (activeCriteriaCount > 0) {
+            setIsExpanded(true);
+        }
+    }
 
     const updateFilter = useCallback(
         (updates: Record<string, string | null | undefined>) => {
@@ -75,7 +71,7 @@ export function TransactionFilters({
                 router.replace(href, { scroll: false });
             });
         },
-        [pathname, router, searchParams, startTransition]
+        [pathname, router, searchParams, startTransition],
     );
 
     // Debounced search trigger
@@ -115,35 +111,17 @@ export function TransactionFilters({
     };
 
     // Filter specific tags based on selected category (if any)
-    const availableSpecificTags = values.category
-        ? specificTags.filter((tag) => tag.categoryId === values.category)
-        : specificTags;
+    const availableSpecificTags = values.category ? specificTags.filter((tag) => tag.categoryId === values.category) : specificTags;
 
     return (
         <div className="flex flex-col gap-2">
             {/* Top row: Search input + Compact Sort dropdown */}
             <div className="flex items-center gap-2">
                 <div className="relative flex-1">
-                    {isPending ? (
-                        <LoaderCircle className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-orchid" aria-hidden />
-                    ) : (
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden />
-                    )}
-                    <input
-                        type="search"
-                        value={searchValue}
-                        onChange={(e) => setSearchValue(e.target.value)}
-                        placeholder={searchPlaceholder ?? "Buscar transação..."}
-                        className="h-10 w-full rounded-xl border-0 bg-surface pl-9 pr-8 text-sm text-text focus:outline-2 focus:outline-violet"
-                        aria-label={searchPlaceholder ?? "Buscar transações"}
-                    />
+                    {isPending ? <LoaderCircle className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-orchid" aria-hidden /> : <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden />}
+                    <input type="search" value={searchValue} onChange={(e) => setSearchValue(e.target.value)} placeholder={searchPlaceholder ?? "Buscar transação..."} className="h-10 w-full rounded-xl border-0 bg-surface pl-9 pr-8 text-sm text-text focus:outline-2 focus:outline-violet" aria-label={searchPlaceholder ?? "Buscar transações"} />
                     {searchValue ? (
-                        <button
-                            type="button"
-                            onClick={handleClearSearch}
-                            aria-label="Limpar busca"
-                            className="absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted hover:text-text transition-colors"
-                        >
+                        <button type="button" onClick={handleClearSearch} aria-label="Limpar busca" className="absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted hover:text-text transition-colors">
                             <X className="size-3.5" />
                         </button>
                     ) : null}
@@ -171,35 +149,15 @@ export function TransactionFilters({
 
             {/* Second row: Filter accordion toggle + Clear all button */}
             <div className="flex items-center justify-between">
-                <button
-                    type="button"
-                    onClick={() => setIsExpanded((prev) => !prev)}
-                    aria-expanded={isExpanded}
-                    className={cn(
-                        "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors",
-                        activeCriteriaCount > 0
-                            ? "bg-violet/15 text-orchid hover:bg-violet/25"
-                            : isExpanded
-                            ? "bg-surface-raised text-text"
-                            : "bg-surface text-muted hover:text-text"
-                    )}
-                >
+                <button type="button" onClick={() => setIsExpanded((prev) => !prev)} aria-expanded={isExpanded} className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors", activeCriteriaCount > 0 ? "bg-violet/15 text-orchid hover:bg-violet/25" : isExpanded ? "bg-surface-raised text-text" : "bg-surface text-muted hover:text-text")}>
                     <SlidersHorizontal className="size-3.5" aria-hidden="true" />
                     <span>Filtros</span>
-                    {activeCriteriaCount > 0 ? (
-                        <span className="flex size-4 items-center justify-center rounded-full bg-violet text-[10px] font-bold text-ink">
-                            {activeCriteriaCount}
-                        </span>
-                    ) : null}
+                    {activeCriteriaCount > 0 ? <span className="flex size-4 items-center justify-center rounded-full bg-violet text-[10px] font-bold text-ink">{activeCriteriaCount}</span> : null}
                     {isExpanded ? <ChevronUp className="size-3 text-muted" /> : <ChevronDown className="size-3 text-muted" />}
                 </button>
 
                 {hasAnyActiveFilter ? (
-                    <button
-                        type="button"
-                        onClick={handleClearAll}
-                        className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted hover:text-danger transition-colors"
-                    >
+                    <button type="button" onClick={handleClearAll} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted hover:text-danger transition-colors">
                         <RotateCcw className="size-3" aria-hidden="true" />
                         <span>Limpar filtros</span>
                     </button>

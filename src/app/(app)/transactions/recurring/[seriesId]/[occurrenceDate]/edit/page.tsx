@@ -14,12 +14,7 @@ export default async function EditRecurringOccurrencePage({ params }: { params: 
         notFound();
     }
 
-    const [occurrence, categories, generalTags, specificTags] = await Promise.all([
-        getRecurringOccurrence(seriesId, occurrenceDate),
-        getCategories(),
-        getGeneralTags(),
-        getSpecificTags(),
-    ]);
+    const [occurrence, categories, generalTags, specificTags] = await Promise.all([getRecurringOccurrence(seriesId, occurrenceDate), getCategories(), getGeneralTags(), getSpecificTags()]);
 
     if (!occurrence) {
         notFound();
@@ -32,14 +27,7 @@ export default async function EditRecurringOccurrencePage({ params }: { params: 
                 <DeleteTransactionButton name={occurrence.name} kind="recurrence" id={occurrence.seriesId} occurrenceDate={occurrence.occurrenceDate} />
             </div>
             <h1 className="text-2xl font-bold">Editar recorrência</h1>
-            <TransactionForm
-                mode="edit"
-                recurrence={occurrence}
-                today={currentCivilDate()}
-                categories={categories}
-                generalTags={generalTags}
-                specificTags={specificTags}
-            />
+            <TransactionForm mode="edit" recurrence={occurrence} today={currentCivilDate()} categories={categories} generalTags={generalTags} specificTags={specificTags} />
         </div>
     );
 }

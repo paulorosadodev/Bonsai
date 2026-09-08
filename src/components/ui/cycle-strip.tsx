@@ -9,19 +9,7 @@ function civilUtc(civil: string) {
 
 const itemPriority = { today: 1, close: 2, due: 3 };
 
-export function CycleStrip({
-    month,
-    closingDay,
-    dueDay,
-    today,
-    className,
-}: {
-    month?: string;
-    closingDay: number;
-    dueDay: number;
-    today: CivilDate;
-    className?: string;
-}) {
+export function CycleStrip({ month, closingDay, dueDay, today, className }: { month?: string; closingDay: number; dueDay: number; today: CivilDate; className?: string }) {
     const activeMonth = month ?? today.slice(0, 7);
     const [year, monthNum] = activeMonth.split("-").map(Number);
     const totalDays = lastDayOfMonth(year, monthNum);
@@ -48,18 +36,13 @@ export function CycleStrip({
 
     const fillStart = Math.min(closePct, duePct);
     const fillWidth = Math.abs(duePct - closePct);
-    const fill =
-        closePct < duePct
-            ? "linear-gradient(to right, var(--violet), var(--orchid))"
-            : "linear-gradient(to right, var(--orchid), var(--violet))";
+    const fill = closePct < duePct ? "linear-gradient(to right, var(--violet), var(--orchid))" : "linear-gradient(to right, var(--orchid), var(--violet))";
 
     const labels = [
         { key: "today", utc: civilUtc(today), swatch: "bg-mint", text: "text-mint", caption: "Hoje", date: today },
         { key: "close", utc: civilUtc(closingDate), swatch: "bg-violet", text: "text-text", caption: "Fecha", date: closingDate },
         { key: "due", utc: civilUtc(dueDate), swatch: "bg-orchid", text: "text-text", caption: "Vence", date: dueDate },
-    ].toSorted(
-        (a, b) => a.utc - b.utc || itemPriority[a.key as keyof typeof itemPriority] - itemPriority[b.key as keyof typeof itemPriority],
-    );
+    ].toSorted((a, b) => a.utc - b.utc || itemPriority[a.key as keyof typeof itemPriority] - itemPriority[b.key as keyof typeof itemPriority]);
 
     return (
         <section aria-label="Ciclo da fatura" className={cn("rounded-2xl bg-surface px-3 py-3", className)}>
@@ -71,25 +54,10 @@ export function CycleStrip({
             <div className="relative h-4" aria-hidden>
                 <div className="absolute inset-y-0 left-2 right-2">
                     <div className="absolute inset-x-0 top-1.5 h-1 rounded-full bg-surface-raised" />
-                    <div
-                        className="absolute top-1.5 h-1 rounded-full"
-                        style={{ left: `${fillStart}%`, width: `${fillWidth}%`, backgroundImage: fill }}
-                    />
-                    <span
-                        className="absolute top-0 size-4 -translate-x-1/2 rounded-full bg-violet shadow-xs"
-                        style={{ left: `${closePct}%` }}
-                        title={`Fecha: ${formatDayMonth(closingDate)}`}
-                    />
-                    <span
-                        className="absolute top-0 size-4 -translate-x-1/2 rounded-full bg-orchid shadow-xs"
-                        style={{ left: `${duePct}%` }}
-                        title={`Vence: ${formatDayMonth(dueDate)}`}
-                    />
-                    <span
-                        className="absolute top-0.5 z-10 size-3 -translate-x-1/2 rounded-full bg-mint ring-2 ring-surface shadow-xs transition-all duration-300"
-                        style={{ left: `${todayPct}%` }}
-                        title={`Hoje: ${formatDayMonth(today)}`}
-                    />
+                    <div className="absolute top-1.5 h-1 rounded-full" style={{ left: `${fillStart}%`, width: `${fillWidth}%`, backgroundImage: fill }} />
+                    <span className="absolute top-0 size-4 -translate-x-1/2 rounded-full bg-violet shadow-xs" style={{ left: `${closePct}%` }} title={`Fecha: ${formatDayMonth(closingDate)}`} />
+                    <span className="absolute top-0 size-4 -translate-x-1/2 rounded-full bg-orchid shadow-xs" style={{ left: `${duePct}%` }} title={`Vence: ${formatDayMonth(dueDate)}`} />
+                    <span className="absolute top-0.5 z-10 size-3 -translate-x-1/2 rounded-full bg-mint ring-2 ring-surface shadow-xs transition-all duration-300" style={{ left: `${todayPct}%` }} title={`Hoje: ${formatDayMonth(today)}`} />
                 </div>
             </div>
             <div className="mt-2 flex items-start justify-between gap-1 text-xs text-muted">

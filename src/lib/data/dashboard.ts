@@ -6,11 +6,12 @@ import { occurrenceEditHref, occurrenceKey } from "@/lib/domain/recurrence";
 import { requireUser } from "@/lib/supabase/server";
 import { getUserCategoriesMap } from "./categories";
 import { getUserGeneralTagsMap, getUserSpecificTagsMap } from "./tags";
+import { getUserLocationsMap } from "./locations";
 import { hasReimbursement } from "./entries";
 import { currentMonth, monthEnd, monthStart, shiftCalendarMonth } from "./month";
 import { earliestSeriesStart, loadRecurrenceStateFrom, projectLoadedRecurrences } from "./recurrences";
 import { getSettings } from "./settings";
-import type { DashboardCategoryTotal, DashboardData, DashboardEntryItem, TagInfo } from "./types";
+import { formatTransactionName, type DashboardCategoryTotal, type DashboardData, type DashboardEntryItem, type TagInfo } from "./types";
 
 function normalizeSearchText(text: string) {
     return text
@@ -43,6 +44,7 @@ type DetailedEntryRow = {
         category_id: string;
         specific_tag_id: string | null;
         general_tag_ids: string[];
+        location_id: string | null;
         purchase_date: string;
         payment_method: PaymentMethod;
     } | null;
@@ -66,21 +68,15 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
     const today = toSaoPauloCivilDate(new Date());
     const { supabase, user } = await requireUser();
 
-    const [settings, entriesResult, detailedEntriesResult, recurrence, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([
+    const [settings, entriesResult, detailedEntriesResult, recurrence, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([
         getSettings(),
-        supabase
-            .from("transaction_entries")
-            .select("amount_cents, competence_date, transactions!inner(category_id, general_tag_ids)")
-            .order("competence_date", { ascending: true }),
-        supabase
-            .from("transaction_entries")
-            .select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(id, name, description, category_id, specific_tag_id, general_tag_ids, purchase_date, payment_method)")
-            .eq("competence_date", competence)
-            .order("competence_date", { ascending: false }),
+        supabase.from("transaction_entries").select("amount_cents, competence_date, transactions!inner(category_id, general_tag_ids)").order("competence_date", { ascending: true }),
+        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(id, name, description, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method)").eq("competence_date", competence).order("competence_date", { ascending: false }),
         loadRecurrenceStateFrom(supabase),
         getUserCategoriesMap(supabase, user.id),
         getUserGeneralTagsMap(supabase, user.id),
         getUserSpecificTagsMap(supabase, user.id),
+        getUserLocationsMap(supabase, user.id),
     ]);
 
     if (entriesResult.error || detailedEntriesResult.error) {
@@ -169,11 +165,12 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
 
             const spec = tx.specific_tag_id ? specificTagsMap.get(tx.specific_tag_id) : null;
             const specificTag: TagInfo | null = spec ? { id: spec.id, name: spec.name, color: spec.color, icon: spec.icon ?? null } : null;
+            const loc = tx.location_id ? (locationsMap.get(tx.location_id) ?? null) : null;
 
             return {
                 id: row.id,
                 transactionId: tx.id,
-                name: tx.name,
+                name: formatTransactionName(tx.name, loc),
                 description: tx.description,
                 amountCents: row.amount_cents,
                 purchaseDate: tx.purchase_date,
@@ -187,6 +184,8 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
                 specificTag,
                 generalTagIds: tx.general_tag_ids ?? [],
                 generalTags,
+                locationId: tx.location_id,
+                location: loc,
                 isRecurring: false,
                 isForecast: false,
                 editHref: `/transactions/${tx.id}/edit`,

@@ -144,15 +144,7 @@ export function nextUnrealizedOccurrence(today: CivilDate, monthlyDay: number, f
     throw new Error("Não foi possível calcular a próxima ocorrência");
 }
 
-export function projectSeriesOccurrences(
-    series: RecurringSeriesRecord,
-    versions: RecurringVersionRecord[],
-    history: SettingsHistoryRecord[],
-    from: CivilDate,
-    to: CivilDate,
-    today: CivilDate,
-    fallbackSettings: CycleSettings
-): RecurringOccurrence[] {
+export function projectSeriesOccurrences(series: RecurringSeriesRecord, versions: RecurringVersionRecord[], history: SettingsHistoryRecord[], from: CivilDate, to: CivilDate, today: CivilDate, fallbackSettings: CycleSettings): RecurringOccurrence[] {
     const seriesVersions = versions.filter((version) => version.seriesId === series.id).toSorted((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
 
     if (seriesVersions.length === 0 || series.startsOn > to || (series.endsBefore !== null && series.endsBefore <= from)) {
@@ -231,4 +223,3 @@ export function nextCivilDate(value: CivilDate): CivilDate {
 function createMonthDate(year: number, month: number) {
     return year * 12 + month;
 }
-

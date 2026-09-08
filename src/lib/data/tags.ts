@@ -4,11 +4,7 @@ import type { GeneralTagOption, SpecificTagOption, UserGeneralTag, UserSpecificT
 
 export const getGeneralTags = cache(async (): Promise<GeneralTagOption[]> => {
     const { supabase, user } = await requireUser();
-    const { data, error } = await supabase
-        .from("user_general_tags")
-        .select("id, name, color, icon")
-        .eq("user_id", user.id)
-        .order("name", { ascending: true });
+    const { data, error } = await supabase.from("user_general_tags").select("id, name, color, icon").eq("user_id", user.id).order("name", { ascending: true });
 
     if (error) {
         throw new Error("Não foi possível carregar as tags gerais");
@@ -19,11 +15,7 @@ export const getGeneralTags = cache(async (): Promise<GeneralTagOption[]> => {
 
 export const getSpecificTags = cache(async (categoryId?: string): Promise<SpecificTagOption[]> => {
     const { supabase, user } = await requireUser();
-    let query = supabase
-        .from("user_specific_tags")
-        .select("id, category_id, name, color, icon")
-        .eq("user_id", user.id)
-        .order("name", { ascending: true });
+    let query = supabase.from("user_specific_tags").select("id, category_id, name, color, icon").eq("user_id", user.id).order("name", { ascending: true });
 
     if (categoryId) {
         query = query.eq("category_id", categoryId);
@@ -44,14 +36,8 @@ export const getSpecificTags = cache(async (categoryId?: string): Promise<Specif
     }));
 });
 
-export async function getUserGeneralTagsMap(
-    supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
-    userId: string
-): Promise<Map<string, UserGeneralTag>> {
-    const { data, error } = await supabase
-        .from("user_general_tags")
-        .select("id, user_id, name, color, icon, created_at, updated_at")
-        .eq("user_id", userId);
+export async function getUserGeneralTagsMap(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], userId: string): Promise<Map<string, UserGeneralTag>> {
+    const { data, error } = await supabase.from("user_general_tags").select("id, user_id, name, color, icon, created_at, updated_at").eq("user_id", userId);
 
     if (error) {
         throw new Error("Não foi possível carregar as tags gerais");
@@ -64,14 +50,8 @@ export async function getUserGeneralTagsMap(
     return map;
 }
 
-export async function getUserSpecificTagsMap(
-    supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
-    userId: string
-): Promise<Map<string, UserSpecificTag>> {
-    const { data, error } = await supabase
-        .from("user_specific_tags")
-        .select("id, user_id, category_id, name, color, icon, created_at, updated_at")
-        .eq("user_id", userId);
+export async function getUserSpecificTagsMap(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], userId: string): Promise<Map<string, UserSpecificTag>> {
+    const { data, error } = await supabase.from("user_specific_tags").select("id, user_id, category_id, name, color, icon, created_at, updated_at").eq("user_id", userId);
 
     if (error) {
         throw new Error("Não foi possível carregar as tags específicas");

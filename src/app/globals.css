@@ -113,6 +113,17 @@ h3 {
     outline-offset: 0;
 }
 
+.recharts-wrapper,
+.recharts-wrapper *,
+.recharts-surface,
+.recharts-surface:focus,
+.recharts-responsive-container,
+.recharts-responsive-container:focus,
+svg.recharts-surface:focus {
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
+}
+
 ::backdrop {
     background: rgb(16 11 30 / 0.72);
 }
