@@ -37,6 +37,15 @@ export function toEntryInserts(transactionId: string, userId: string, entries: B
     }));
 }
 
-export function hasReimbursement(tags: string[] | null | undefined): boolean {
-    return Boolean(tags?.includes("reimbursement"));
+export function hasReimbursement(
+    tags: Array<string | { name?: string }> | null | undefined,
+    reimbursementTagId?: string
+): boolean {
+    if (!tags || tags.length === 0) return false;
+    return tags.some((t) => {
+        if (typeof t === "string") {
+            return t === "reimbursement" || (reimbursementTagId !== undefined && t === reimbursementTagId);
+        }
+        return t?.name?.toLowerCase() === "reembolso" || t?.name?.toLowerCase() === "reimbursement";
+    });
 }

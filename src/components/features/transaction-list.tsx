@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { categoryLabels, generalTagLabels, paymentMethodLabels, specificTagLabels } from "@/lib/domain/catalog";
+import { paymentMethodLabels } from "@/lib/domain/catalog";
 import { formatBrl } from "@/lib/domain/money";
 import type { TransactionListItem } from "@/lib/data/types";
 import { formatCivilDate } from "./params";
-import { categoryVisuals, generalTagVisuals, paymentVisuals, recurringVisual, specificTagVisual } from "./transaction-visuals";
+import { getItemVisual, paymentVisuals, recurringVisual } from "./transaction-visuals";
 import { VisualBadge } from "@/components/ui/visual-badge";
 
 function paymentLabel(item: TransactionListItem) {
@@ -33,15 +33,15 @@ export function TransactionList({ items }: { items: TransactionListItem[] }) {
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <VisualBadge visual={paymentVisuals[item.paymentMethod]}>{paymentLabel(item)}</VisualBadge>
-                            <VisualBadge visual={categoryVisuals[item.category]}>{categoryLabels[item.category]}</VisualBadge>
-                            {item.specificTag ? <VisualBadge visual={specificTagVisual(item.specificTag)}>{specificTagLabels[item.specificTag]}</VisualBadge> : null}
+                            <VisualBadge visual={getItemVisual(item.category)}>{item.category.name}</VisualBadge>
+                            {item.specificTag ? <VisualBadge visual={getItemVisual(item.specificTag)}>{item.specificTag.name}</VisualBadge> : null}
                             {item.isRecurring ? <VisualBadge visual={recurringVisual}>Recorrente</VisualBadge> : null}
                         </div>
                         {item.generalTags.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
                                 {item.generalTags.map((tag) => (
-                                    <VisualBadge key={tag} visual={generalTagVisuals[tag]}>
-                                        {generalTagLabels[tag]}
+                                    <VisualBadge key={tag.id} visual={getItemVisual(tag)}>
+                                        {tag.name}
                                     </VisualBadge>
                                 ))}
                             </div>

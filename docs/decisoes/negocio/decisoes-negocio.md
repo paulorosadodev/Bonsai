@@ -49,7 +49,7 @@ Este documento registra as regras de domínio já acordadas. Decisões confirmad
 - A primeira ocorrência usa a data informada no formulário:
     - PIX pertence ao mês civil dessa data;
     - cartão à vista segue normalmente o ciclo da fatura. Por exemplo, com fechamento no dia 14, uma recorrência criada em `15/08` aparece na fatura de setembro, com vencimento em `20/09`.
-- Uma nova recorrência não aceita data anterior à data civil atual. A conversão de uma compra avulsa passada segue a regra específica de conversão e inicia a série na próxima data mensal ainda não realizada.
+- Uma nova recorrência aceita qualquer data informada no formulário (passada, presente ou futura), iniciando a série a partir dessa data e projetando ocorrências mensais desde então.
 - Quando o dia original não existe em um mês, a ocorrência usa o último dia disponível desse mês.
 - O valor e os demais dados de uma série podem mudar apenas a partir da próxima ocorrência ainda não realizada:
     - uma edição antes do dia mensal da compra afeta a ocorrência do mês atual;
@@ -57,9 +57,7 @@ Este documento registra as regras de domínio já acordadas. Decisões confirmad
     - meses anteriores e ocorrências já realizadas no mês atual são históricos imutáveis.
 - Editar uma ocorrência passada não altera o passado; a mudança passa a valer na próxima ocorrência ainda não realizada.
 - Alterações de nome, valor, forma de pagamento, categoria, tags, descrição ou dia mensal preservam o histórico e afetam somente ocorrências futuras.
-- Uma compra avulsa elegível pode ser convertida em recorrente:
-    - se a compra ainda não ocorreu, ela pode ser a primeira ocorrência;
-    - se a compra é passada, ela permanece avulsa e a série começa na próxima data mensal ainda não realizada.
+- Uma compra avulsa elegível pode ser convertida em recorrente (seja ela passada ou futura), tornando-se a primeira ocorrência da série a partir de sua data de compra original.
 - A recorrência pode ser encerrada de duas formas:
     - excluir uma ocorrência recorrente remove essa ocorrência e encerra as seguintes, após confirmação explícita;
     - desligar o toggle **Recorrente** mantém a ocorrência sendo editada como compra avulsa e encerra as posteriores.

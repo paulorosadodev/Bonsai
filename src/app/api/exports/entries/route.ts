@@ -1,8 +1,10 @@
-import type { Category, GeneralTag, PaymentMethod, SpecificTag } from "@/lib/domain/catalog";
+import type { PaymentMethod } from "@/lib/domain/catalog";
 import { exportParametersSchema } from "@/lib/domain/schemas";
 import { occurrenceKey } from "@/lib/domain/recurrence";
 import { amountBrl, csvResponse, serializeTags, toCsv } from "@/lib/data/csv";
 import { getRealizedRecurrences } from "@/lib/data/recurrences";
+import { getUserCategoriesMap } from "@/lib/data/categories";
+import { getUserGeneralTagsMap, getUserSpecificTagsMap } from "@/lib/data/tags";
 import { getUserClient } from "@/lib/supabase/server";
 import { NextRequest } from "next/server";
 
@@ -22,9 +24,9 @@ type EntryRow = {
         name: string;
         purchase_date: string;
         payment_method: PaymentMethod;
-        category: Category;
-        specific_tag: SpecificTag | null;
-        general_tags: GeneralTag[];
+        category_id: string;
+        specific_tag_id: string | null;
+        general_tag_ids: string[];
     } | null;
 };
 
@@ -50,7 +52,11 @@ export async function GET(request: NextRequest) {
 
     const filters = parsed.data;
 
-    let query = supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, purchase_date, payment_method, category, specific_tag, general_tags)").order("competence_date", { ascending: true }).order("installment_number", { ascending: true });
+    let query = supabase
+        .from("transaction_entries")
+        .select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, purchase_date, payment_method, category_id, specific_tag_id, general_tag_ids)")
+        .order("competence_date", { ascending: true })
+        .order("installment_number", { ascending: true });
 
     if (filters.from) {
         query = query.gte("competence_date", filters.from);
@@ -60,14 +66,25 @@ export async function GET(request: NextRequest) {
         query = query.lte("competence_date", filters.to);
     }
 
-    const [{ data, error }, recurring] = await Promise.all([query, getRealizedRecurrences()]);
+    const [{ data, error }, recurring, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([
+        query,
+        getRealizedRecurrences(),
+        getUserCategoriesMap(supabase, user.id),
+        getUserGeneralTagsMap(supabase, user.id),
+        getUserSpecificTagsMap(supabase, user.id),
+    ]);
 
     if (error) {
         return new Response("Error", { status: 500, headers: { "Cache-Control": "no-store" } });
     }
 
-    function matchesFilters(category: Category, paymentMethod: PaymentMethod, tags: GeneralTag[]) {
-        if (filters.category && category !== filters.category) {
+    const isReimbursementTag = (id: string) => {
+        const tag = generalTagsMap.get(id);
+        return tag?.name.toLowerCase() === "reembolso" || tag?.name.toLowerCase() === "reimbursement";
+    };
+
+    function matchesFilters(categoryId: string, paymentMethod: PaymentMethod, tagIds: string[]) {
+        if (filters.category && categoryId !== filters.category) {
             return false;
         }
 
@@ -75,17 +92,36 @@ export async function GET(request: NextRequest) {
             return false;
         }
 
-        return filters.includeReimbursements || !tags.includes("reimbursement");
+        return filters.includeReimbursements || !tagIds.some(isReimbursementTag);
     }
+
+    const getCatName = (id: string) => categoriesMap.get(id)?.name ?? id;
+    const getSpecName = (id: string | null) => (id ? specificTagsMap.get(id)?.name ?? id : null);
+    const getGenNames = (ids: string[]) => ids.map((id) => generalTagsMap.get(id)?.name ?? id);
 
     const standalones = ((data ?? []) as EntryRow[]).flatMap((row) => {
         const transaction = row.transactions;
 
-        if (!transaction || !matchesFilters(transaction.category, transaction.payment_method, transaction.general_tags)) {
+        if (!transaction || !matchesFilters(transaction.category_id, transaction.payment_method, transaction.general_tag_ids ?? [])) {
             return [];
         }
 
-        return [[row.id, row.transaction_id, transaction.name, row.installment_number, row.installment_count, row.amount_cents, amountBrl(row.amount_cents), row.competence_date, row.invoice_due_date, transaction.purchase_date, transaction.payment_method, transaction.category, transaction.specific_tag, serializeTags(transaction.general_tags)] as Array<string | number | null>];
+        return [[
+            row.id,
+            row.transaction_id,
+            transaction.name,
+            row.installment_number,
+            row.installment_count,
+            row.amount_cents,
+            amountBrl(row.amount_cents),
+            row.competence_date,
+            row.invoice_due_date,
+            transaction.purchase_date,
+            transaction.payment_method,
+            getCatName(transaction.category_id),
+            getSpecName(transaction.specific_tag_id),
+            serializeTags(getGenNames(transaction.general_tag_ids ?? [])),
+        ] as Array<string | number | null>];
     });
 
     const recurrences = recurring.flatMap((occurrence) => {
@@ -97,12 +133,27 @@ export async function GET(request: NextRequest) {
             return [];
         }
 
-        if (!matchesFilters(occurrence.category, occurrence.paymentMethod, occurrence.generalTags)) {
+        if (!matchesFilters(occurrence.categoryId, occurrence.paymentMethod, occurrence.generalTagIds ?? [])) {
             return [];
         }
 
         const key = occurrenceKey(occurrence.seriesId, occurrence.occurrenceDate);
-        return [[key, occurrence.seriesId, occurrence.name, 1, 1, occurrence.entry.amountCents, amountBrl(occurrence.entry.amountCents), occurrence.entry.competenceDate, occurrence.entry.invoiceDueDate, occurrence.occurrenceDate, occurrence.paymentMethod, occurrence.category, occurrence.specificTag, serializeTags(occurrence.generalTags)] as Array<string | number | null>];
+        return [[
+            key,
+            occurrence.seriesId,
+            occurrence.name,
+            1,
+            1,
+            occurrence.entry.amountCents,
+            amountBrl(occurrence.entry.amountCents),
+            occurrence.entry.competenceDate,
+            occurrence.entry.invoiceDueDate,
+            occurrence.occurrenceDate,
+            occurrence.paymentMethod,
+            getCatName(occurrence.categoryId),
+            getSpecName(occurrence.specificTagId),
+            serializeTags(getGenNames(occurrence.generalTagIds ?? [])),
+        ] as Array<string | number | null>];
     });
 
     const rows = [...standalones, ...recurrences].sort((a, b) => String(a[7]).localeCompare(String(b[7])) || Number(a[3]) - Number(b[3]));

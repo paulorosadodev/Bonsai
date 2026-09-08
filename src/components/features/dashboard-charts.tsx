@@ -3,18 +3,20 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useReducedMotion } from "motion/react";
-import { categoryLabels } from "@/lib/domain/catalog";
+import { ChevronDown } from "lucide-react";
 import { formatBrl } from "@/lib/domain/money";
 import type { DashboardCategoryTotal, DashboardHistoryPoint } from "@/lib/data/types";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/components/ui/cn";
 import { Select } from "@/components/ui/select";
 import { formatAxisMonth, formatMonthLabel } from "./params";
-import { categoryVisuals } from "./transaction-visuals";
+import { DynamicIcon } from "./transaction-visuals";
 
 type TooltipRow = {
     title: string;
     fill: string;
     amountCents: number;
-    category?: DashboardCategoryTotal["category"];
+    icon?: string;
 };
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: ReadonlyArray<{ payload?: TooltipRow }> }) {
@@ -23,11 +25,10 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Readonl
     }
 
     const row = payload[0].payload;
-    const Icon = row.category ? categoryVisuals[row.category].icon : null;
 
     return (
         <div className="flex min-w-40 gap-2.5 rounded-xl border border-surface-raised bg-surface px-3 py-2 shadow-[0_12px_32px_rgb(8_5_16/0.55)]">
-            {Icon ? <Icon className="mt-0.5 size-4 shrink-0" style={{ color: row.fill }} aria-hidden /> : <span className="w-0.5 shrink-0 self-stretch rounded-full" style={{ background: row.fill }} aria-hidden />}
+            {row.icon ? <DynamicIcon name={row.icon} className="mt-0.5 size-4 shrink-0" style={{ color: row.fill }} /> : <span className="w-0.5 shrink-0 self-stretch rounded-full" style={{ background: row.fill }} aria-hidden />}
             <div className="flex min-w-0 flex-col gap-0.5">
                 <p className="text-xs font-medium text-muted">{row.title}</p>
                 <p className="tabular text-sm font-semibold text-text">{formatBrl(row.amountCents)}</p>
@@ -55,23 +56,45 @@ function ChartViewport({ className, height, width, children }: { className: stri
 }
 
 export function CategoryChart({ items }: { items: DashboardCategoryTotal[] }) {
+    const [isOpen, setIsOpen] = useState(false);
     const reduce = useReducedMotion();
     const rows = items
         .filter((item) => item.amountCents > 0)
         .map((item) => ({
             ...item,
-            label: categoryLabels[item.category],
-            title: categoryLabels[item.category],
-            fill: categoryVisuals[item.category].color,
+            label: item.name,
+            title: item.name,
+            fill: item.color,
         }))
         .sort((a, b) => b.amountCents - a.amountCents);
 
     if (rows.length === 0) {
-        return <p className="text-sm text-muted">Nenhum gasto por categoria neste mês.</p>;
+        return (
+            <Card>
+                <p className="text-sm text-muted">Nenhum gasto por categoria neste mês.</p>
+            </Card>
+        );
     }
 
     return (
-        <div className="flex flex-col gap-3">
+        <Card
+            role="button"
+            tabIndex={0}
+            aria-expanded={isOpen}
+            onClick={() => setIsOpen((prev) => !prev)}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setIsOpen((prev) => !prev);
+                }
+            }}
+            className="flex flex-col gap-3 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
+        >
+            <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-text">Por Categoria</h2>
+                <ChevronDown className={cn("size-4 text-muted transition-transform duration-200", isOpen && "rotate-180 text-violet")} aria-hidden />
+            </div>
+
             <ChartViewport className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
@@ -80,28 +103,29 @@ export function CategoryChart({ items }: { items: DashboardCategoryTotal[] }) {
                         <Tooltip cursor={tooltipCursor} content={<ChartTooltip />} wrapperStyle={tooltipWrapperStyle} contentStyle={tooltipContentStyle} />
                         <Bar dataKey="amountCents" radius={[0, 8, 8, 0]} isAnimationActive={!reduce} maxBarSize={22}>
                             {rows.map((row) => (
-                                <Cell key={row.category} fill={row.fill} />
+                                <Cell key={row.categoryId} fill={row.fill} />
                             ))}
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
             </ChartViewport>
-            <ul className="flex flex-col gap-1.5">
-                {rows.map((row) => (
-                    <CategoryLegendItem key={row.category} row={row} />
-                ))}
-            </ul>
-        </div>
+
+            {isOpen ? (
+                <ul className="flex flex-col gap-1.5 border-t border-surface-raised/70 pt-3">
+                    {rows.map((row) => (
+                        <CategoryLegendItem key={row.categoryId} row={row} />
+                    ))}
+                </ul>
+            ) : null}
+        </Card>
     );
 }
 
-function CategoryLegendItem({ row }: { row: { category: DashboardCategoryTotal["category"]; label: string; fill: string; amountCents: number } }) {
-    const Icon = categoryVisuals[row.category].icon;
-
+function CategoryLegendItem({ row }: { row: { categoryId: string; label: string; fill: string; icon: string; amountCents: number } }) {
     return (
         <li className="flex items-center justify-between gap-3 text-sm">
             <span className="inline-flex items-center gap-2 text-muted">
-                <Icon className="size-4" style={{ color: row.fill }} aria-hidden />
+                <DynamicIcon name={row.icon} className="size-4" style={{ color: row.fill }} />
                 {row.label}
             </span>
             <span className="tabular text-text">{formatBrl(row.amountCents)}</span>
@@ -135,6 +159,7 @@ function visibleHistory(items: DashboardHistoryPoint[], range: HistoryRange) {
 }
 
 export function HistoryChart({ items }: { items: DashboardHistoryPoint[] }) {
+    const [isOpen, setIsOpen] = useState(false);
     const reduce = useReducedMotion();
     const scrollerRef = useRef<HTMLDivElement>(null);
     const [range, setRange] = useState<HistoryRange>(DEFAULT_HISTORY_RANGE);
@@ -154,33 +179,50 @@ export function HistoryChart({ items }: { items: DashboardHistoryPoint[] }) {
     }, [range, rows.length]);
 
     if (items.every((item) => item.amountCents <= 0)) {
-        return <p className="text-sm text-muted">Ainda não há histórico mensal.</p>;
+        return null;
     }
 
     return (
-        <div className="flex flex-col gap-3">
-            <div className="flex items-start justify-between gap-3">
-                <h2 className="pt-2 text-lg font-bold">Histórico Mensal</h2>
-                <div className="w-36 shrink-0">
-                    <Select
-                        id="historyRange"
-                        aria-label="Meses"
-                        value={range}
-                        onChange={(event) => {
-                            if (isHistoryRange(event.target.value)) {
-                                setRange(event.target.value);
-                            }
-                        }}
-                        className="bg-surface-raised"
-                    >
-                        {HISTORY_RANGES.map((option) => (
-                            <option key={option.value} value={option.value}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </Select>
+        <Card
+            role="button"
+            tabIndex={0}
+            aria-expanded={isOpen}
+            onClick={() => setIsOpen((prev) => !prev)}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setIsOpen((prev) => !prev);
+                }
+            }}
+            className="flex flex-col gap-3 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet"
+        >
+            <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-text">Histórico Mensal</h2>
+                <div className="flex items-center gap-2">
+                    <div className="w-28 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Select
+                            id="historyRange"
+                            aria-label="Meses"
+                            value={range}
+                            size="sm"
+                            onChange={(value) => {
+                                if (isHistoryRange(value)) {
+                                    setRange(value);
+                                }
+                            }}
+                            triggerClassName="bg-surface-raised py-1 text-xs"
+                        >
+                            {HISTORY_RANGES.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </Select>
+                    </div>
+                    <ChevronDown className={cn("size-4 text-muted transition-transform duration-200", isOpen && "rotate-180 text-violet")} aria-hidden />
                 </div>
             </div>
+
             {rows.length === 0 ? (
                 <p className="text-sm text-muted">Ainda não há histórico mensal.</p>
             ) : (
@@ -197,16 +239,19 @@ export function HistoryChart({ items }: { items: DashboardHistoryPoint[] }) {
                             </ResponsiveContainer>
                         </ChartViewport>
                     </div>
-                    <ol className="flex flex-col gap-2">
-                        {rows.map((row) => (
-                            <li key={row.month} className="flex items-center justify-between gap-3">
-                                <span className="text-base font-semibold text-text">{row.title}</span>
-                                <span className="tabular text-base font-semibold text-text">{formatBrl(row.amountCents)}</span>
-                            </li>
-                        ))}
-                    </ol>
+
+                    {isOpen ? (
+                        <ol className="flex flex-col gap-2 border-t border-surface-raised/70 pt-3">
+                            {rows.map((row) => (
+                                <li key={row.month} className="flex items-center justify-between gap-3">
+                                    <span className="text-sm text-text">{row.title}</span>
+                                    <span className="tabular text-sm font-semibold text-text">{formatBrl(row.amountCents)}</span>
+                                </li>
+                            ))}
+                        </ol>
+                    ) : null}
                 </>
             )}
-        </div>
+        </Card>
     );
 }

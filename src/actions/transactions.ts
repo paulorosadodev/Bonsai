@@ -10,7 +10,7 @@ import { convertTransactionToRecurring, createRecurringSeries } from "./recurren
 import { fromZodError, genericDeleteError, genericSaveError, type ActionResult } from "./result";
 import { z } from "zod";
 
-const transactionIdSchema = z.uuid();
+const transactionIdSchema = z.string().uuid();
 
 function descriptionValue(description: string | undefined): string | null {
     if (!description) {
@@ -43,7 +43,7 @@ async function persistTransaction(id: string | null, transaction: TransactionInp
         invoice_due_date: entry.invoiceDueDate,
     }));
     const { data, error } = await supabase.rpc("persist_transaction", {
-        p_transaction_id: id,
+        p_transaction_id: (id ?? undefined) as unknown as string,
         p_transaction: {
             kind: "transaction",
             name: transaction.name,
@@ -52,9 +52,9 @@ async function persistTransaction(id: string | null, transaction: TransactionInp
             purchase_date: transaction.purchaseDate,
             payment_method: transaction.paymentMethod,
             installment_count: transaction.installmentCount,
-            category: transaction.category,
-            general_tags: transaction.generalTags,
-            specific_tag: transaction.specificTag ?? null,
+            category_id: transaction.category,
+            general_tag_ids: transaction.generalTags,
+            specific_tag_id: transaction.specificTag ?? null,
         },
         p_entries: entries,
     });

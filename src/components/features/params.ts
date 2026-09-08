@@ -1,5 +1,6 @@
-import { categories, generalTags, paymentMethods, type Category, type GeneralTag, type PaymentMethod } from "@/lib/domain/catalog";
+import { paymentMethods, type PaymentMethod } from "@/lib/domain/catalog";
 import { toSaoPauloCivilDate } from "@/lib/domain/billing-cycle";
+import type { TransactionSort } from "@/lib/domain/schemas";
 
 export function currentCivilDate() {
     return toSaoPauloCivilDate(new Date());
@@ -94,12 +95,29 @@ export function parseIncludeReimbursements(searchParams: Record<string, string |
 
 export function parseTransactionListParams(searchParams: Record<string, string | string[] | undefined>) {
     const month = parseMonthParam(searchParams);
-    const categoryValue = readParam(searchParams, "category");
+    const category = readParam(searchParams, "category") || undefined;
     const paymentValue = readParam(searchParams, "paymentMethod");
-    const tagValue = readParam(searchParams, "generalTag");
-    const category = categoryValue && (categories as readonly string[]).includes(categoryValue) ? (categoryValue as Category) : undefined;
     const paymentMethod = paymentValue && (paymentMethods as readonly string[]).includes(paymentValue) ? (paymentValue as PaymentMethod) : undefined;
-    const generalTag = tagValue && (generalTags as readonly string[]).includes(tagValue) ? (tagValue as GeneralTag) : undefined;
+    const generalTag = readParam(searchParams, "generalTag") || undefined;
+    const specificTag = readParam(searchParams, "specificTag") || undefined;
+    const search = readParam(searchParams, "search")?.trim() || undefined;
+    const sortValue = readParam(searchParams, "sort");
+    const sort: TransactionSort = sortValue === "date_asc" || sortValue === "amount_desc" || sortValue === "amount_asc" ? sortValue : "date_desc";
 
-    return { month, category, paymentMethod, generalTag, includeReimbursements: true };
+    return { month, category, paymentMethod, generalTag, specificTag, search, sort, includeReimbursements: true };
 }
+
+export function parseInvoiceListParams(searchParams: Record<string, string | string[] | undefined>) {
+    return {
+        ...parseTransactionListParams(searchParams),
+        includeReimbursements: parseIncludeReimbursements(searchParams),
+    };
+}
+
+export function parseDashboardListParams(searchParams: Record<string, string | string[] | undefined>) {
+    return {
+        ...parseTransactionListParams(searchParams),
+        includeReimbursements: parseIncludeReimbursements(searchParams),
+    };
+}
+

@@ -19,8 +19,10 @@ export function AppHeader() {
     const month = monthValue && isMonth(monthValue) ? monthValue : undefined;
     const urlChecked = searchParams.get("includeReimbursements") === "true";
     const [checked, setChecked] = useOptimistic(urlChecked);
-    const { pending, start } = useFinancePending();
+    const { pending, pendingKind, start } = useFinancePending();
     const homeHref = onFinance ? financeSearchHref("/", searchParams) : "/";
+    const isReimbursementPending = pending && pendingKind === "reimbursements";
+    const progressLabel = pendingKind === "month" ? "Atualizando mês" : "Atualizando reembolsos";
 
     return (
         <header className="sticky top-0 z-30 bg-ink pt-[env(safe-area-inset-top,0px)]">
@@ -33,20 +35,20 @@ export function AppHeader() {
                     <Toggle
                         checked={checked}
                         className="ml-auto gap-2"
-                        aria-busy={pending || undefined}
+                        aria-busy={isReimbursementPending || undefined}
                         onCheckedChange={(next) => {
                             start(() => {
                                 setChecked(next);
                                 router.replace(searchHref(pathname, { month, includeReimbursements: next }), { scroll: false });
-                            });
+                            }, "reimbursements");
                         }}
                     >
                         Reembolsos
-                        {pending ? <LoaderCircle className="size-4 animate-spin text-orchid" aria-hidden /> : null}
+                        {isReimbursementPending ? <LoaderCircle className="size-4 animate-spin text-orchid" aria-hidden /> : null}
                     </Toggle>
                 ) : null}
                 {pending ? (
-                    <div className="absolute inset-x-4 bottom-0 h-0.5 overflow-hidden rounded-full bg-surface-raised" role="progressbar" aria-label="Atualizando reembolsos">
+                    <div className="absolute inset-x-4 bottom-0 h-0.5 overflow-hidden rounded-full bg-surface-raised" role="progressbar" aria-label={progressLabel}>
                         <div className="h-full w-1/2 animate-pulse rounded-full bg-violet" />
                     </div>
                 ) : null}

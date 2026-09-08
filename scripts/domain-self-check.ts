@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createBillingEntries, getInvoiceDueDate, getPurchaseInvoiceCycle, occurrenceDateInMonth, splitCents, toSaoPauloCivilDate } from "../src/lib/domain/billing-cycle";
 import { formatBrl, parseBrlToCents } from "../src/lib/domain/money";
+import { parsePastedCurrency } from "../src/components/ui/currency-input";
 import { isEligibleForRecurrence, nextEditableEffectiveFrom, projectSeriesOccurrences, settingsAt, versionAt } from "../src/lib/domain/recurrence";
 
 assert.equal(getInvoiceDueDate("2026-08-13", 14, 20), "2026-08-20");
@@ -14,6 +15,12 @@ assert.deepEqual(splitCents(1000, 3), [334, 333, 333]);
 assert.equal(parseBrlToCents("R$ 1.250,27"), 125027);
 assert.equal(formatBrl(125027), "R$ 1.250,27");
 assert.equal(formatBrl(0), "R$ 0,00");
+assert.equal(parsePastedCurrency("150"), "R$ 150,00");
+assert.equal(parsePastedCurrency("150,50"), "R$ 150,50");
+assert.equal(parsePastedCurrency("150.50"), "R$ 150,50");
+assert.equal(parsePastedCurrency("R$ 1.250,27"), "R$ 1.250,27");
+assert.equal(parsePastedCurrency("0"), "");
+assert.equal(parsePastedCurrency(""), "");
 assert.equal(toSaoPauloCivilDate(new Date("2026-08-14T02:30:00Z")), "2026-08-13");
 assert.deepEqual(
     createBillingEntries({
@@ -54,9 +61,9 @@ const versions = [
         description: null,
         amountCents: 5500,
         paymentMethod: "credit" as const,
-        category: "leisure" as const,
-        generalTags: [],
-        specificTag: "subscription" as const,
+        categoryId: "22222222-2222-2222-2222-222222222222",
+        generalTagIds: [],
+        specificTagId: "33333333-3333-3333-3333-333333333333",
     },
 ];
 const settingsHistory = [{ effectiveFrom: "1970-01-01T00:00:00.000Z", closingDay: 14, dueDay: 20 }];
@@ -110,3 +117,73 @@ assert.deepEqual(
     realizedOnly.map((item) => item.occurrenceDate),
     ["2026-08-15"],
 );
+
+// Tests for nextCivilDate and previousCivilDate
+import { nextCivilDate, previousCivilDate } from "../src/lib/domain/recurrence";
+import { transactionSchema } from "../src/lib/domain/schemas";
+
+assert.equal(nextCivilDate("2026-12-15"), "2026-12-16");
+assert.equal(nextCivilDate("2026-12-31"), "2027-01-01");
+assert.equal(previousCivilDate("2026-12-16"), "2026-12-15");
+assert.equal(previousCivilDate("2027-01-01"), "2026-12-31");
+
+// Test recurrence with inclusive end date mapped via nextCivilDate
+const endsOnDec15 = projectSeriesOccurrences(
+    { ...series, endsBefore: nextCivilDate("2026-10-15") },
+    versions,
+    settingsHistory,
+    "2026-08-01",
+    "2026-12-31",
+    "2026-08-10",
+    fallback
+);
+assert.deepEqual(
+    endsOnDec15.map((item) => item.occurrenceDate),
+    ["2026-08-15", "2026-09-15", "2026-10-15"]
+);
+
+// Test transactionSchema validation for recurringEndDate
+const validUuid = "22222222-2222-4222-a222-222222222222";
+
+const validNoEnd = transactionSchema.safeParse({
+    name: "Netflix",
+    amount: "55,00",
+    purchaseDate: "2026-08-15",
+    paymentMethod: "credit",
+    installmentCount: 1,
+    isRecurring: true,
+    recurringEndDate: "",
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(validNoEnd.success, true);
+
+const validWithEnd = transactionSchema.safeParse({
+    name: "Academia",
+    amount: "150,00",
+    purchaseDate: "2026-08-15",
+    paymentMethod: "credit",
+    installmentCount: 1,
+    isRecurring: true,
+    recurringEndDate: "2026-12-15",
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(validWithEnd.success, true);
+
+const invalidEndDateBeforeStart = transactionSchema.safeParse({
+    name: "Academia",
+    amount: "150,00",
+    purchaseDate: "2026-08-15",
+    paymentMethod: "credit",
+    installmentCount: 1,
+    isRecurring: true,
+    recurringEndDate: "2026-08-10",
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(invalidEndDateBeforeStart.success, false);
+

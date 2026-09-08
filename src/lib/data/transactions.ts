@@ -1,12 +1,14 @@
-import type { Category, GeneralTag, PaymentMethod, SpecificTag } from "@/lib/domain/catalog";
+import type { PaymentMethod } from "@/lib/domain/catalog";
 import { toSaoPauloCivilDate } from "@/lib/domain/billing-cycle";
 import type { z } from "zod";
 import { transactionFiltersSchema } from "@/lib/domain/schemas";
 import { requireUser } from "@/lib/supabase/server";
+import { getUserCategoriesMap } from "./categories";
+import { getUserGeneralTagsMap, getUserSpecificTagsMap } from "./tags";
 import { hasReimbursement } from "./entries";
 import { monthEnd, monthStart, nextMonthStart } from "./month";
 import { projectRecurrences, recurrenceListItem } from "./recurrences";
-import type { TransactionDetail, TransactionEntryRecord, TransactionListData, TransactionListItem, TransactionRecord } from "./types";
+import type { TagInfo, TransactionDetail, TransactionEntryRecord, TransactionListData, TransactionListItem, TransactionRecord } from "./types";
 
 type TransactionRow = {
     id: string;
@@ -16,9 +18,9 @@ type TransactionRow = {
     purchase_date: string;
     payment_method: PaymentMethod;
     installment_count: number;
-    category: Category;
-    general_tags: GeneralTag[];
-    specific_tag: SpecificTag | null;
+    category_id: string;
+    general_tag_ids: string[];
+    specific_tag_id: string | null;
     created_at: string;
     updated_at: string;
 };
@@ -33,7 +35,27 @@ type EntryRow = {
     invoice_due_date: string | null;
 };
 
-function mapTransaction(row: TransactionRow): TransactionRecord {
+function mapTransaction(
+    row: TransactionRow,
+    categoriesMap: Map<string, { id: string; name: string; color: string; icon: string }>,
+    generalTagsMap: Map<string, { id: string; name: string; color: string; icon?: string | null }>,
+    specificTagsMap: Map<string, { id: string; name: string; color: string; icon?: string | null }>
+): TransactionRecord {
+    const cat = categoriesMap.get(row.category_id) ?? {
+        id: row.category_id,
+        name: "Categoria",
+        color: "#94A3B8",
+        icon: "Tag",
+    };
+
+    const generalTags: TagInfo[] = (row.general_tag_ids ?? [])
+        .map((tagId) => generalTagsMap.get(tagId))
+        .filter((t): t is NonNullable<typeof t> => Boolean(t))
+        .map((t) => ({ id: t.id, name: t.name, color: t.color, icon: t.icon ?? null }));
+
+    const spec = row.specific_tag_id ? specificTagsMap.get(row.specific_tag_id) : null;
+    const specificTag: TagInfo | null = spec ? { id: spec.id, name: spec.name, color: spec.color, icon: spec.icon ?? null } : null;
+
     return {
         id: row.id,
         name: row.name,
@@ -42,9 +64,12 @@ function mapTransaction(row: TransactionRow): TransactionRecord {
         purchaseDate: row.purchase_date,
         paymentMethod: row.payment_method,
         installmentCount: row.installment_count,
-        category: row.category,
-        generalTags: row.general_tags,
-        specificTag: row.specific_tag,
+        categoryId: row.category_id,
+        category: cat,
+        generalTagIds: row.general_tag_ids ?? [],
+        generalTags,
+        specificTagId: row.specific_tag_id,
+        specificTag,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     };
@@ -64,16 +89,21 @@ function mapEntry(row: EntryRow): TransactionEntryRecord {
 
 export async function getTransactions(filters: z.input<typeof transactionFiltersSchema> = {}): Promise<TransactionListData> {
     const parsed = transactionFiltersSchema.parse(filters);
-    const { supabase } = await requireUser();
+    const { supabase, user } = await requireUser();
     const today = toSaoPauloCivilDate(new Date());
-    let query = supabase.from("transactions").select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category, general_tags, specific_tag, created_at, updated_at").order("purchase_date", { ascending: false }).order("created_at", { ascending: false });
+
+    let query = supabase
+        .from("transactions")
+        .select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, created_at, updated_at")
+        .order("purchase_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
     if (parsed.month) {
         query = query.gte("purchase_date", monthStart(parsed.month)).lt("purchase_date", nextMonthStart(parsed.month));
     }
 
     if (parsed.category) {
-        query = query.eq("category", parsed.category);
+        query = query.eq("category_id", parsed.category);
     }
 
     if (parsed.paymentMethod) {
@@ -81,18 +111,28 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
     }
 
     if (parsed.generalTag) {
-        query = query.contains("general_tags", [parsed.generalTag]);
+        query = query.contains("general_tag_ids", [parsed.generalTag]);
+    }
+
+    if (parsed.specificTag) {
+        query = query.eq("specific_tag_id", parsed.specificTag);
     }
 
     const month = parsed.month;
-    const [result, projected] = await Promise.all([query, month ? projectRecurrences(monthStart(month), monthEnd(month), today) : projectRecurrences("1970-01-01", today, today)]);
+    const [result, projected, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([
+        query,
+        month ? projectRecurrences(monthStart(month), monthEnd(month), today) : projectRecurrences("1970-01-01", today, today),
+        getUserCategoriesMap(supabase, user.id),
+        getUserGeneralTagsMap(supabase, user.id),
+        getUserSpecificTagsMap(supabase, user.id),
+    ]);
 
     if (result.error) {
         throw new Error("Não foi possível carregar as transações");
     }
 
     const standalones: TransactionListItem[] = (result.data as TransactionRow[])
-        .map(mapTransaction)
+        .map((row) => mapTransaction(row, categoriesMap, generalTagsMap, specificTagsMap))
         .filter((transaction) => parsed.includeReimbursements || !hasReimbursement(transaction.generalTags))
         .map((transaction) => ({
             key: transaction.id,
@@ -102,8 +142,11 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
             purchaseDate: transaction.purchaseDate,
             paymentMethod: transaction.paymentMethod,
             installmentCount: transaction.installmentCount,
+            categoryId: transaction.categoryId,
             category: transaction.category,
+            generalTagIds: transaction.generalTagIds,
             generalTags: transaction.generalTags,
+            specificTagId: transaction.specificTagId,
             specificTag: transaction.specificTag,
             isRecurring: false,
             isForecast: false,
@@ -114,7 +157,7 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
 
     const recurrences = projected
         .filter((occurrence) => {
-            if (parsed.category && occurrence.category !== parsed.category) {
+            if (parsed.category && occurrence.categoryId !== parsed.category) {
                 return false;
             }
 
@@ -122,15 +165,55 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
                 return false;
             }
 
-            if (parsed.generalTag && !occurrence.generalTags.includes(parsed.generalTag)) {
+            if (parsed.generalTag && !occurrence.generalTagIds.includes(parsed.generalTag)) {
                 return false;
             }
 
-            return parsed.includeReimbursements || !hasReimbursement(occurrence.generalTags);
-        })
-        .map(recurrenceListItem);
+            if (parsed.specificTag && occurrence.specificTagId !== parsed.specificTag) {
+                return false;
+            }
 
-    const items = [...standalones, ...recurrences].sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate) || a.name.localeCompare(b.name));
+            const generalTagObjects = occurrence.generalTagIds
+                .map((id) => generalTagsMap.get(id))
+                .filter(Boolean);
+
+            return parsed.includeReimbursements || !hasReimbursement(generalTagObjects as Array<{ name?: string }>);
+        })
+        .map((occurrence) => recurrenceListItem(occurrence, categoriesMap, generalTagsMap, specificTagsMap));
+
+    function normalizeSearchText(text: string) {
+        return text
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    let items = [...standalones, ...recurrences];
+
+    if (parsed.search) {
+        const query = normalizeSearchText(parsed.search);
+        items = items.filter((item) => {
+            const nameMatch = normalizeSearchText(item.name).includes(query);
+            const descMatch = item.description ? normalizeSearchText(item.description).includes(query) : false;
+            const catMatch = normalizeSearchText(item.category.name).includes(query);
+            return nameMatch || descMatch || catMatch;
+        });
+    }
+
+    const sort = parsed.sort ?? "date_desc";
+    items.sort((a, b) => {
+        switch (sort) {
+            case "date_asc":
+                return a.purchaseDate.localeCompare(b.purchaseDate) || a.name.localeCompare(b.name);
+            case "amount_desc":
+                return b.amountCents - a.amountCents || b.purchaseDate.localeCompare(a.purchaseDate);
+            case "amount_asc":
+                return a.amountCents - b.amountCents || b.purchaseDate.localeCompare(a.purchaseDate);
+            case "date_desc":
+            default:
+                return b.purchaseDate.localeCompare(a.purchaseDate) || a.name.localeCompare(b.name);
+        }
+    });
 
     return {
         items,
@@ -138,10 +221,27 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
 }
 
 export async function getTransaction(id: string): Promise<TransactionDetail | null> {
-    const { supabase } = await requireUser();
-    const [{ data: transaction, error: transactionError }, { data: entries, error: entriesError }] = await Promise.all([
-        supabase.from("transactions").select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category, general_tags, specific_tag, created_at, updated_at").eq("id", id).maybeSingle(),
-        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date").eq("transaction_id", id).order("installment_number", { ascending: true }),
+    const { supabase, user } = await requireUser();
+    const [
+        { data: transaction, error: transactionError },
+        { data: entries, error: entriesError },
+        categoriesMap,
+        generalTagsMap,
+        specificTagsMap
+    ] = await Promise.all([
+        supabase
+            .from("transactions")
+            .select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, created_at, updated_at")
+            .eq("id", id)
+            .maybeSingle(),
+        supabase
+            .from("transaction_entries")
+            .select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date")
+            .eq("transaction_id", id)
+            .order("installment_number", { ascending: true }),
+        getUserCategoriesMap(supabase, user.id),
+        getUserGeneralTagsMap(supabase, user.id),
+        getUserSpecificTagsMap(supabase, user.id),
     ]);
 
     if (transactionError || entriesError) {
@@ -153,7 +253,7 @@ export async function getTransaction(id: string): Promise<TransactionDetail | nu
     }
 
     return {
-        ...mapTransaction(transaction as TransactionRow),
+        ...mapTransaction(transaction as TransactionRow, categoriesMap, generalTagsMap, specificTagsMap),
         entries: (entries as EntryRow[]).map(mapEntry),
     };
 }

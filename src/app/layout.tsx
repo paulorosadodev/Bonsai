@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     title: "Bonsai - Meus gastos",
     description: "App de finanças pessoais",
     icons: {
-        icon: [{ url: logo1.src, type: "image/png", }],
+        icon: [{ url: logo1.src, type: "image/png" }],
         apple: [{ url: logo1.src }],
     },
 };

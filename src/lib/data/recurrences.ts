@@ -1,10 +1,12 @@
-import type { Category, GeneralTag, PaymentMethod, SpecificTag } from "@/lib/domain/catalog";
+import type { PaymentMethod } from "@/lib/domain/catalog";
 import { toSaoPauloCivilDate, type CivilDate } from "@/lib/domain/billing-cycle";
 import { occurrenceEditHref, occurrenceKey, projectSeriesOccurrences, type RecurringOccurrence, type RecurringSeriesRecord, type RecurringVersionRecord, type SettingsHistoryRecord } from "@/lib/domain/recurrence";
 import { requireUser } from "@/lib/supabase/server";
 import { defaultSettings } from "./entries";
 import { getSettings } from "./settings";
-import type { RecurringOccurrenceDetail } from "./types";
+import { getUserCategoriesMap } from "./categories";
+import { getUserGeneralTagsMap, getUserSpecificTagsMap } from "./tags";
+import type { RecurringOccurrenceDetail, TagInfo, TransactionListItem } from "./types";
 
 type SeriesRow = {
     id: string;
@@ -20,9 +22,9 @@ type VersionRow = {
     description: string | null;
     amount_cents: number;
     payment_method: PaymentMethod;
-    category: Category;
-    general_tags: GeneralTag[];
-    specific_tag: SpecificTag | null;
+    category_id: string;
+    general_tag_ids: string[];
+    specific_tag_id: string | null;
 };
 
 type HistoryRow = {
@@ -54,9 +56,9 @@ function mapVersion(row: VersionRow): RecurringVersionRecord {
         description: row.description,
         amountCents: row.amount_cents,
         paymentMethod: row.payment_method,
-        category: row.category,
-        generalTags: row.general_tags,
-        specificTag: row.specific_tag,
+        categoryId: row.category_id,
+        generalTagIds: row.general_tag_ids ?? [],
+        specificTagId: row.specific_tag_id,
     };
 }
 
@@ -66,7 +68,11 @@ export async function loadRecurrenceState(): Promise<RecurrenceState> {
 }
 
 export async function loadRecurrenceStateFrom(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"]): Promise<RecurrenceState> {
-    const [seriesResult, versionsResult, historyResult] = await Promise.all([supabase.from("recurring_series").select("id, starts_on, ends_before"), supabase.from("recurring_versions").select("series_id, effective_from, monthly_day, name, description, amount_cents, payment_method, category, general_tags, specific_tag"), supabase.from("user_settings_history").select("effective_from, closing_day, due_day").order("effective_from", { ascending: true })]);
+    const [seriesResult, versionsResult, historyResult] = await Promise.all([
+        supabase.from("recurring_series").select("id, starts_on, ends_before"),
+        supabase.from("recurring_versions").select("series_id, effective_from, monthly_day, name, description, amount_cents, payment_method, category_id, general_tag_ids, specific_tag_id"),
+        supabase.from("user_settings_history").select("effective_from, closing_day, due_day").order("effective_from", { ascending: true })
+    ]);
 
     if (seriesResult.error || versionsResult.error || historyResult.error) {
         throw new Error("Não foi possível carregar as recorrências");
@@ -95,7 +101,14 @@ export function projectLoadedRecurrences(state: RecurrenceState, from: CivilDate
 export async function getRecurringOccurrence(seriesId: string, occurrenceDate: string): Promise<RecurringOccurrenceDetail | null> {
     const today = toSaoPauloCivilDate(new Date());
     const civil = occurrenceDate as CivilDate;
-    const [state, settings] = await Promise.all([loadRecurrenceState(), getSettings()]);
+    const { supabase, user } = await requireUser();
+    const [state, settings, categoriesMap, generalTagsMap, specificTagsMap] = await Promise.all([
+        loadRecurrenceStateFrom(supabase),
+        getSettings(),
+        getUserCategoriesMap(supabase, user.id),
+        getUserGeneralTagsMap(supabase, user.id),
+        getUserSpecificTagsMap(supabase, user.id),
+    ]);
     const series = state.series.find((item) => item.id === seriesId);
 
     if (!series) {
@@ -108,6 +121,21 @@ export async function getRecurringOccurrence(seriesId: string, occurrenceDate: s
         return null;
     }
 
+    const cat = categoriesMap.get(occurrence.categoryId) ?? {
+        id: occurrence.categoryId,
+        name: "Categoria",
+        color: "#94A3B8",
+        icon: "Tag",
+    };
+
+    const generalTags: TagInfo[] = occurrence.generalTagIds
+        .map((tagId) => generalTagsMap.get(tagId))
+        .filter((t): t is NonNullable<typeof t> => Boolean(t))
+        .map((t) => ({ id: t.id, name: t.name, color: t.color, icon: t.icon ?? null }));
+
+    const spec = occurrence.specificTagId ? specificTagsMap.get(occurrence.specificTagId) : null;
+    const specificTag: TagInfo | null = spec ? { id: spec.id, name: spec.name, color: spec.color, icon: spec.icon ?? null, categoryId: spec.category_id } : null;
+
     return {
         seriesId: occurrence.seriesId,
         occurrenceDate: occurrence.occurrenceDate,
@@ -119,14 +147,37 @@ export async function getRecurringOccurrence(seriesId: string, occurrenceDate: s
         description: occurrence.description,
         amountCents: occurrence.amountCents,
         paymentMethod: occurrence.paymentMethod,
-        category: occurrence.category,
-        generalTags: occurrence.generalTags,
-        specificTag: occurrence.specificTag,
+        categoryId: occurrence.categoryId,
+        category: cat,
+        generalTagIds: occurrence.generalTagIds,
+        generalTags,
+        specificTagId: occurrence.specificTagId,
+        specificTag,
         isForecast: occurrence.isForecast,
     };
 }
 
-export function recurrenceListItem(occurrence: RecurringOccurrence) {
+export function recurrenceListItem(
+    occurrence: RecurringOccurrence,
+    categoriesMap?: Map<string, { id: string; name: string; color: string; icon: string }>,
+    generalTagsMap?: Map<string, { id: string; name: string; color: string; icon?: string | null }>,
+    specificTagsMap?: Map<string, { id: string; name: string; color: string; icon?: string | null; category_id?: string }>
+): TransactionListItem {
+    const cat = categoriesMap?.get(occurrence.categoryId) ?? {
+        id: occurrence.categoryId,
+        name: "Categoria",
+        color: "#94A3B8",
+        icon: "Tag",
+    };
+
+    const generalTags: TagInfo[] = (occurrence.generalTagIds ?? [])
+        .map((tagId) => generalTagsMap?.get(tagId))
+        .filter((t): t is NonNullable<typeof t> => Boolean(t))
+        .map((t) => ({ id: t.id, name: t.name, color: t.color, icon: t.icon ?? null }));
+
+    const spec = occurrence.specificTagId ? specificTagsMap?.get(occurrence.specificTagId) : null;
+    const specificTag: TagInfo | null = spec ? { id: spec.id, name: spec.name, color: spec.color, icon: spec.icon ?? null } : null;
+
     return {
         key: occurrenceKey(occurrence.seriesId, occurrence.occurrenceDate),
         name: occurrence.name,
@@ -135,9 +186,12 @@ export function recurrenceListItem(occurrence: RecurringOccurrence) {
         purchaseDate: occurrence.occurrenceDate,
         paymentMethod: occurrence.paymentMethod,
         installmentCount: 1,
-        category: occurrence.category,
-        generalTags: occurrence.generalTags,
-        specificTag: occurrence.specificTag,
+        categoryId: occurrence.categoryId,
+        category: cat,
+        generalTagIds: occurrence.generalTagIds ?? [],
+        generalTags,
+        specificTagId: occurrence.specificTagId,
+        specificTag,
         isRecurring: true,
         isForecast: occurrence.isForecast,
         editHref: occurrenceEditHref(occurrence.seriesId, occurrence.occurrenceDate),

@@ -108,7 +108,7 @@ export async function saveSettings(input: SettingsInput): Promise<ActionResult> 
     }
 
     const { error: persistError } = await supabase.rpc("persist_transaction", {
-        p_transaction_id: null,
+        p_transaction_id: undefined as unknown as string,
         p_transaction: {
             kind: "settings",
             closing_day: parsed.data.closingDay,

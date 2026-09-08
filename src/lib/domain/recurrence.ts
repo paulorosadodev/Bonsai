@@ -1,5 +1,6 @@
-import type { Category, GeneralTag, PaymentMethod, SpecificTag } from "./catalog";
+import type { PaymentMethod } from "./catalog";
 import { addMonths, civilMonth, createBillingEntries, occurrenceDateInMonth, parseCivilDate, startOfCivilDate, type BillingEntry, type CivilDate } from "./billing-cycle";
+
 type CycleSettings = {
     closingDay: number;
     dueDay: number;
@@ -19,9 +20,9 @@ export type RecurringVersionRecord = {
     description: string | null;
     amountCents: number;
     paymentMethod: PaymentMethod;
-    category: Category;
-    generalTags: GeneralTag[];
-    specificTag: SpecificTag | null;
+    categoryId: string;
+    generalTagIds: string[];
+    specificTagId: string | null;
 };
 
 export type SettingsHistoryRecord = {
@@ -38,9 +39,9 @@ export type RecurringOccurrence = {
     description: string | null;
     amountCents: number;
     paymentMethod: PaymentMethod;
-    category: Category;
-    generalTags: GeneralTag[];
-    specificTag: SpecificTag | null;
+    categoryId: string;
+    generalTagIds: string[];
+    specificTagId: string | null;
     isForecast: boolean;
     entry: BillingEntry;
 };
@@ -143,7 +144,15 @@ export function nextUnrealizedOccurrence(today: CivilDate, monthlyDay: number, f
     throw new Error("Não foi possível calcular a próxima ocorrência");
 }
 
-export function projectSeriesOccurrences(series: RecurringSeriesRecord, versions: RecurringVersionRecord[], history: SettingsHistoryRecord[], from: CivilDate, to: CivilDate, today: CivilDate, fallbackSettings: CycleSettings): RecurringOccurrence[] {
+export function projectSeriesOccurrences(
+    series: RecurringSeriesRecord,
+    versions: RecurringVersionRecord[],
+    history: SettingsHistoryRecord[],
+    from: CivilDate,
+    to: CivilDate,
+    today: CivilDate,
+    fallbackSettings: CycleSettings
+): RecurringOccurrence[] {
     const seriesVersions = versions.filter((version) => version.seriesId === series.id).toSorted((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
 
     if (seriesVersions.length === 0 || series.startsOn > to || (series.endsBefore !== null && series.endsBefore <= from)) {
@@ -188,9 +197,9 @@ export function projectSeriesOccurrences(series: RecurringSeriesRecord, versions
                     description: version.description,
                     amountCents: version.amountCents,
                     paymentMethod: version.paymentMethod,
-                    category: version.category,
-                    generalTags: version.generalTags,
-                    specificTag: version.specificTag,
+                    categoryId: version.categoryId,
+                    generalTagIds: version.generalTagIds,
+                    specificTagId: version.specificTagId,
                     isForecast: occurrenceDate > today,
                     entry,
                 });
@@ -205,9 +214,16 @@ export function projectSeriesOccurrences(series: RecurringSeriesRecord, versions
     return occurrences;
 }
 
-function previousCivilDate(value: CivilDate): CivilDate {
+export function previousCivilDate(value: CivilDate): CivilDate {
     const { year, month, day } = parseCivilDate(value);
     const utc = Date.UTC(year, month - 1, day - 1);
+    const date = new Date(utc);
+    return `${date.getUTCFullYear().toString().padStart(4, "0")}-${(date.getUTCMonth() + 1).toString().padStart(2, "0")}-${date.getUTCDate().toString().padStart(2, "0")}` as CivilDate;
+}
+
+export function nextCivilDate(value: CivilDate): CivilDate {
+    const { year, month, day } = parseCivilDate(value);
+    const utc = Date.UTC(year, month - 1, day + 1);
     const date = new Date(utc);
     return `${date.getUTCFullYear().toString().padStart(4, "0")}-${(date.getUTCMonth() + 1).toString().padStart(2, "0")}-${date.getUTCDate().toString().padStart(2, "0")}` as CivilDate;
 }
@@ -215,3 +231,4 @@ function previousCivilDate(value: CivilDate): CivilDate {
 function createMonthDate(year: number, month: number) {
     return year * 12 + month;
 }
+

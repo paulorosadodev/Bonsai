@@ -1,19 +1,33 @@
 "use client";
 
-import { createContext, useContext, useTransition, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useTransition, type ReactNode } from "react";
+
+export type PendingKind = "reimbursements" | "month" | null;
 
 const FinancePending = createContext<{
     pending: boolean;
-    start: (action: () => void) => void;
+    pendingKind: PendingKind;
+    start: (action: () => void, kind?: PendingKind) => void;
 }>({
     pending: false,
+    pendingKind: null,
     start: (action) => action(),
 });
 
 export function FinancePendingProvider({ children }: { children: ReactNode }) {
-    const [pending, start] = useTransition();
+    const [pending, startTransition] = useTransition();
+    const [pendingKind, setPendingKind] = useState<PendingKind>(null);
 
-    return <FinancePending.Provider value={{ pending, start }}>{children}</FinancePending.Provider>;
+    const start = useCallback((action: () => void, kind: PendingKind = null) => {
+        setPendingKind(kind);
+        startTransition(() => {
+            action();
+        });
+    }, []);
+
+    const effectiveKind = pending ? pendingKind : null;
+
+    return <FinancePending.Provider value={{ pending, pendingKind: effectiveKind, start }}>{children}</FinancePending.Provider>;
 }
 
 export function useFinancePending() {
@@ -21,12 +35,13 @@ export function useFinancePending() {
 }
 
 export function PendingMain({ children }: { children: ReactNode }) {
-    const { pending } = useFinancePending();
+    const { pending, pendingKind } = useFinancePending();
+    const label = pendingKind === "reimbursements" ? "Atualizando reembolsos" : pendingKind === "month" ? "Atualizando mês" : "Atualizando dados";
 
     return (
         <div className={pending ? "pointer-events-none opacity-55 transition-opacity" : "transition-opacity"} aria-busy={pending || undefined}>
             {children}
-            {pending ? <span className="sr-only">Atualizando reembolsos</span> : null}
+            {pending ? <span className="sr-only">{label}</span> : null}
         </div>
     );
 }

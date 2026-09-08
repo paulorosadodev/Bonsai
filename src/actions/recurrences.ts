@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { parseCivilDate, toSaoPauloCivilDate, type CivilDate } from "@/lib/domain/billing-cycle";
-import { isEligibleForRecurrence, nextEditableEffectiveFrom, nextUnrealizedOccurrence } from "@/lib/domain/recurrence";
+import { isEligibleForRecurrence, nextCivilDate, nextEditableEffectiveFrom } from "@/lib/domain/recurrence";
 import { createTransactionSchema, recurrenceTargetSchema, transactionSchema, type TransactionFormInput, type TransactionInput } from "@/lib/domain/schemas";
 import { buildBillingEntries } from "@/lib/data/entries";
 import { getRecurringOccurrence } from "@/lib/data/recurrences";
@@ -31,9 +31,9 @@ function financialPayload(transaction: TransactionInput, extra: Record<string, s
         description: descriptionValue(transaction.description),
         amount_cents: transaction.amount,
         payment_method: transaction.paymentMethod,
-        category: transaction.category,
-        general_tags: transaction.generalTags,
-        specific_tag: transaction.specificTag ?? null,
+        category_id: transaction.category,
+        general_tag_ids: transaction.generalTags,
+        specific_tag_id: transaction.specificTag ?? null,
         monthly_day: parseCivilDate(transaction.purchaseDate as CivilDate).day,
         ...extra,
     };
@@ -72,17 +72,20 @@ export async function createRecurringSeries(input: TransactionFormInput): Promis
         return { ok: false, error: genericSaveError };
     }
 
+    const endsBefore = parsed.data.recurringEndDate ? nextCivilDate(parsed.data.recurringEndDate as CivilDate) : null;
+
     return persistRecurrence(
         financialPayload(parsed.data, {
             kind: "create",
             starts_on: parsed.data.purchaseDate,
             effective_from: parsed.data.purchaseDate,
+            ends_before: endsBefore,
         }),
     );
 }
 
 export async function convertTransactionToRecurring(transactionId: string, input: TransactionFormInput): Promise<ActionResult<{ id: string }>> {
-    const idParsed = z.uuid().safeParse(transactionId);
+    const idParsed = z.string().uuid().safeParse(transactionId);
     const parsed = transactionSchema.safeParse(input);
 
     if (!idParsed.success) {
@@ -97,28 +100,15 @@ export async function convertTransactionToRecurring(transactionId: string, input
         return { ok: false, error: genericSaveError };
     }
 
-    const today = toSaoPauloCivilDate(new Date());
-    const monthlyDay = parseCivilDate(parsed.data.purchaseDate as CivilDate).day;
-
-    if (parsed.data.purchaseDate > today) {
-        return persistRecurrence(
-            financialPayload(parsed.data, {
-                kind: "convert_future",
-                transaction_id: idParsed.data,
-                starts_on: parsed.data.purchaseDate,
-                effective_from: parsed.data.purchaseDate,
-            }),
-        );
-    }
-
-    const startsOn = nextUnrealizedOccurrence(today, monthlyDay);
+    const endsBefore = parsed.data.recurringEndDate ? nextCivilDate(parsed.data.recurringEndDate as CivilDate) : null;
 
     return persistRecurrence(
         financialPayload(parsed.data, {
-            kind: "convert_past",
-            starts_on: startsOn,
-            effective_from: startsOn,
-            monthly_day: monthlyDay,
+            kind: "convert_future",
+            transaction_id: idParsed.data,
+            starts_on: parsed.data.purchaseDate,
+            effective_from: parsed.data.purchaseDate,
+            ends_before: endsBefore,
         }),
     );
 }
@@ -148,6 +138,7 @@ export async function updateRecurringOccurrence(seriesId: string, occurrenceDate
     const today = toSaoPauloCivilDate(new Date());
     const newMonthlyDay = parseCivilDate(parsed.data.purchaseDate as CivilDate).day;
     const effectiveFrom = nextEditableEffectiveFrom(today, occurrence.monthlyDay, newMonthlyDay);
+    const endsBefore = parsed.data.recurringEndDate ? nextCivilDate(parsed.data.recurringEndDate as CivilDate) : null;
 
     return persistRecurrence(
         financialPayload(parsed.data, {
@@ -155,6 +146,7 @@ export async function updateRecurringOccurrence(seriesId: string, occurrenceDate
             series_id: target.data.seriesId,
             effective_from: effectiveFrom,
             monthly_day: newMonthlyDay,
+            ends_before: endsBefore,
         }),
     );
 }

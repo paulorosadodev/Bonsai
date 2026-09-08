@@ -1,56 +1,3 @@
-export const categories = ["fixed_expenses", "hygiene", "health", "food", "transportation", "leisure", "clothing", "personal", "gift"] as const;
-
-export const categoryLabels = {
-    fixed_expenses: "Contas Fixas",
-    hygiene: "Higiene",
-    health: "Saúde",
-    food: "Alimentação",
-    transportation: "Transporte",
-    leisure: "Lazer",
-    clothing: "Vestuário",
-    personal: "Pessoal",
-    gift: "Presente",
-} satisfies Record<Category, string>;
-
-export const generalTags = ["reimbursement", "family", "friends"] as const;
-
-export const generalTagLabels = {
-    reimbursement: "Reembolso",
-    family: "Família",
-    friends: "Amigos",
-} satisfies Record<GeneralTag, string>;
-
-export const specificTagsByCategory = {
-    fixed_expenses: ["mobile_phone", "energy", "home"],
-    hygiene: [],
-    health: ["medicine", "doctor", "gym"],
-    food: ["restaurant", "bakery_or_grocery", "snack"],
-    transportation: ["uber", "travel"],
-    leisure: ["subscription", "tickets", "other"],
-    clothing: [],
-    personal: [],
-    gift: [],
-} as const satisfies Record<Category, readonly string[]>;
-
-export const specificTags = ["mobile_phone", "energy", "home", "medicine", "doctor", "gym", "restaurant", "bakery_or_grocery", "snack", "uber", "travel", "subscription", "tickets", "other"] as const;
-
-export const specificTagLabels = {
-    mobile_phone: "Celular",
-    energy: "Energia",
-    home: "Casa",
-    medicine: "Remédio",
-    doctor: "Médico",
-    gym: "Academia",
-    restaurant: "Restaurante",
-    bakery_or_grocery: "Padaria/Supermercado",
-    snack: "Lanche",
-    uber: "Uber",
-    travel: "Viagem",
-    subscription: "Assinatura",
-    tickets: "Ingressos",
-    other: "Outro",
-} satisfies Record<SpecificTag, string>;
-
 export const paymentMethods = ["credit", "pix"] as const;
 
 export const paymentMethodLabels = {
@@ -58,11 +5,134 @@ export const paymentMethodLabels = {
     credit: "Cartão",
 } satisfies Record<PaymentMethod, string>;
 
-export type Category = (typeof categories)[number];
-export type GeneralTag = (typeof generalTags)[number];
-export type SpecificTag = (typeof specificTags)[number];
 export type PaymentMethod = (typeof paymentMethods)[number];
 
-export function isSpecificTagForCategory(category: Category, tag: string): tag is SpecificTag {
-    return (specificTagsByCategory[category] as readonly string[]).includes(tag);
+export interface UserCategory {
+    id: string;
+    user_id: string;
+    name: string;
+    color: string;
+    icon: string;
+    created_at?: string;
+    updated_at?: string;
 }
+
+export interface UserGeneralTag {
+    id: string;
+    user_id: string;
+    name: string;
+    color: string;
+    icon?: string | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface UserSpecificTag {
+    id: string;
+    user_id: string;
+    category_id: string;
+    name: string;
+    color: string;
+    icon?: string | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export type CategoryOption = {
+    id: string;
+    name: string;
+    color: string;
+    icon: string;
+};
+
+export type GeneralTagOption = {
+    id: string;
+    name: string;
+    color: string;
+    icon: string | null;
+};
+
+export type SpecificTagOption = {
+    id: string;
+    categoryId: string;
+    name: string;
+    color: string;
+    icon: string | null;
+};
+
+// Curated aesthetic colors for categories and tags
+export const PRESET_COLORS = [
+    { label: "Violeta", value: "#A78BFA" },
+    { label: "Púrpura", value: "#C084FC" },
+    { label: "Fúcsia", value: "#E879F9" },
+    { label: "Rosa", value: "#F472B6" },
+    { label: "Coral", value: "#FB7185" },
+    { label: "Laranja", value: "#FB923C" },
+    { label: "Âmbar", value: "#FBBF24" },
+    { label: "Amarelo", value: "#F5C451" },
+    { label: "Lima", value: "#A3E635" },
+    { label: "Esmeralda", value: "#34D399" },
+    { label: "Menta", value: "#2DD4BF" },
+    { label: "Ciano", value: "#38BDF8" },
+    { label: "Azul", value: "#60A5FA" },
+    { label: "Índigo", value: "#818CF8" },
+    { label: "Neutro", value: "#94A3B8" },
+    { label: "Zinco", value: "#71717A" },
+] as const;
+
+// Curated Lucide icon identifiers for categories and tags
+export const PRESET_ICONS = [
+    // Finance & Bills
+    "ReceiptText",
+    "Wallet",
+    "DollarSign",
+    "HandCoins",
+    "CreditCard",
+    "QrCode",
+    // Food & Dining
+    "Utensils",
+    "Coffee",
+    "ShoppingBasket",
+    // Living & Home
+    "House",
+    "Bolt",
+    "Wifi",
+    "Sparkles",
+    // Transportation
+    "Car",
+    "BusFront",
+    "Plane",
+    "Fuel",
+    // Health & Fitness
+    "HeartPulse",
+    "Dumbbell",
+    "Pill",
+    "Stethoscope",
+    // Leisure & Fun
+    "PartyPopper",
+    "Ticket",
+    "Gamepad2",
+    "Tv",
+    // Shopping & Style
+    "Shirt",
+    "Gift",
+    "Smartphone",
+    "Tag",
+    // People & Family
+    "UserRound",
+    "UsersRound",
+    "Handshake",
+    "Baby",
+    "Dog",
+    // Work & Education
+    "Briefcase",
+    "GraduationCap",
+    "CircleEllipsis",
+] as const;
+
+export type PresetIconName = (typeof PRESET_ICONS)[number];
+
+// Legacy type aliases for transitional compatibility
+export type Category = string;
+export type GeneralTag = string;
+export type SpecificTag = string;
