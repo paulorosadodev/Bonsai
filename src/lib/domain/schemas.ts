@@ -22,6 +22,11 @@ const monthSchema = z
         return year >= 1000 && month >= 1 && month <= 12;
     }, "Informe uma competência válida");
 
+export const yearSchema = z.coerce.number({ message: "Informe um ano válido" }).int("Informe um ano válido").min(2000, "O ano deve ser igual ou superior a 2000").max(2100, "O ano deve ser igual ou inferior a 2100");
+
+export const dashboardViewSchema = z.enum(["monthly", "annual"]).default("monthly");
+export type DashboardView = z.infer<typeof dashboardViewSchema>;
+
 const cycleDaySchema = z.coerce.number({ message: "Informe um dia válido" }).int("Informe um dia válido").min(1, "O dia deve ser entre 1 e 28").max(28, "O dia deve ser entre 1 e 28");
 
 const booleanParameterSchema = z.preprocess((value) => {
@@ -120,6 +125,26 @@ export function createTransactionSchema(_today?: string) {
 export const settingsSchema = z.object({
     closingDay: cycleDaySchema,
     dueDay: cycleDaySchema,
+    monthlyBudget: z
+        .string()
+        .optional()
+        .transform((value, context) => {
+            if (!value || !value.trim()) {
+                return null;
+            }
+            try {
+                const cents = parseBrlToCents(value);
+                if (cents < 0) {
+                    context.addIssue({ code: "custom", message: "O orçamento deve ser maior ou igual a zero" });
+                    return z.NEVER;
+                }
+                return cents;
+            } catch {
+                context.addIssue({ code: "custom", message: "Informe um valor monetário válido" });
+                return z.NEVER;
+            }
+        })
+        .or(z.number().int().min(0).nullable().optional()),
 });
 
 export const transactionSortSchema = z.enum(["date_desc", "date_asc", "amount_desc", "amount_asc"]);
@@ -127,6 +152,8 @@ export type TransactionSort = z.infer<typeof transactionSortSchema>;
 
 export const transactionFiltersSchema = z.object({
     month: monthSchema.optional(),
+    year: yearSchema.optional(),
+    view: dashboardViewSchema.optional(),
     category: z.string().uuid("Categoria inválida").optional(),
     paymentMethod: z.enum(paymentMethods, { message: "Forma de pagamento inválida" }).optional(),
     generalTag: z.string().uuid("Tag geral inválida").optional(),

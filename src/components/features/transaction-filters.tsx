@@ -43,7 +43,15 @@ export function TransactionFilters({ values, categories = [], generalTags = [], 
 
     const hasAnyActiveFilter = activeCriteriaCount > 0 || Boolean(values.search) || (values.sort && values.sort !== "date_desc");
 
-    const [isExpanded, setIsExpanded] = useState(() => activeCriteriaCount > 0);
+    const [isExpanded, setIsExpanded] = useState(() => {
+        if (activeCriteriaCount > 0) return true;
+        if (typeof window !== "undefined") {
+            try {
+                return sessionStorage.getItem("bonsai_filters_expanded") === "true";
+            } catch {}
+        }
+        return false;
+    });
     const [prevCriteriaCount, setPrevCriteriaCount] = useState(activeCriteriaCount);
 
     if (activeCriteriaCount !== prevCriteriaCount) {
@@ -52,6 +60,16 @@ export function TransactionFilters({ values, categories = [], generalTags = [], 
             setIsExpanded(true);
         }
     }
+
+    const handleToggleExpand = () => {
+        setIsExpanded((prev) => {
+            const next = !prev;
+            try {
+                sessionStorage.setItem("bonsai_filters_expanded", String(next));
+            } catch {}
+            return next;
+        });
+    };
 
     const updateFilter = useCallback(
         (updates: Record<string, string | null | undefined>) => {
@@ -100,6 +118,10 @@ export function TransactionFilters({ values, categories = [], generalTags = [], 
         const nextParams = new URLSearchParams();
         const month = searchParams.get("month");
         if (month) nextParams.set("month", month);
+        const view = searchParams.get("view");
+        if (view) nextParams.set("view", view);
+        const year = searchParams.get("year");
+        if (year) nextParams.set("year", year);
         const includeReimbursements = searchParams.get("includeReimbursements");
         if (includeReimbursements) nextParams.set("includeReimbursements", includeReimbursements);
 
@@ -149,7 +171,7 @@ export function TransactionFilters({ values, categories = [], generalTags = [], 
 
             {/* Second row: Filter accordion toggle + Clear all button */}
             <div className="flex items-center justify-between">
-                <button type="button" onClick={() => setIsExpanded((prev) => !prev)} aria-expanded={isExpanded} className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors", activeCriteriaCount > 0 ? "bg-violet/15 text-orchid hover:bg-violet/25" : isExpanded ? "bg-surface-raised text-text" : "bg-surface text-muted hover:text-text")}>
+                <button type="button" onClick={handleToggleExpand} aria-expanded={isExpanded} className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors", activeCriteriaCount > 0 ? "bg-violet/15 text-orchid hover:bg-violet/25" : isExpanded ? "bg-surface-raised text-text" : "bg-surface text-muted hover:text-text")}>
                     <SlidersHorizontal className="size-3.5" aria-hidden="true" />
                     <span>Filtros</span>
                     {activeCriteriaCount > 0 ? <span className="flex size-4 items-center justify-center rounded-full bg-violet text-[10px] font-bold text-ink">{activeCriteriaCount}</span> : null}

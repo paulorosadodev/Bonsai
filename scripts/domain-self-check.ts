@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { createBillingEntries, getInvoiceDueDate, getPurchaseInvoiceCycle, occurrenceDateInMonth, splitCents, toSaoPauloCivilDate } from "../src/lib/domain/billing-cycle";
 import { formatBrl, parseBrlToCents } from "../src/lib/domain/money";
 import { parsePastedCurrency } from "../src/components/ui/currency-input";
-import { isEligibleForRecurrence, nextEditableEffectiveFrom, projectSeriesOccurrences, settingsAt, versionAt } from "../src/lib/domain/recurrence";
+import { effectiveFromForOccurrence, isEligibleForRecurrence, nextEditableEffectiveFrom, projectSeriesOccurrences, settingsAt, versionAt } from "../src/lib/domain/recurrence";
+import { getReturnUrl, sanitizeReturnUrl, withReturnUrl } from "../src/lib/navigation/return-url";
 
 assert.equal(getInvoiceDueDate("2026-08-13", 14, 20), "2026-08-20");
 assert.equal(getInvoiceDueDate("2026-08-14", 14, 20), "2026-09-20");
@@ -50,6 +51,16 @@ assert.equal(nextEditableEffectiveFrom("2026-08-20", 15, 15), "2026-09-15");
 assert.equal(nextEditableEffectiveFrom("2026-08-10", 15, 20), "2026-08-20");
 assert.equal(nextEditableEffectiveFrom("2026-08-10", 15, 5), "2026-09-05");
 assert.equal(nextEditableEffectiveFrom("2026-08-03", 15, 5), "2026-08-05");
+
+// effectiveFromForOccurrence: future occurrence → uses occurrence's month
+assert.equal(effectiveFromForOccurrence("2026-09-08", "2026-11-15", 15), "2026-11-15");
+assert.equal(effectiveFromForOccurrence("2026-09-08", "2026-10-15", 15), "2026-10-15");
+// effectiveFromForOccurrence: future occurrence with day change → adjusts day in occurrence's month
+assert.equal(effectiveFromForOccurrence("2026-09-08", "2026-11-15", 20), "2026-11-20");
+// effectiveFromForOccurrence: past/today occurrence → falls back to next future occurrence
+assert.equal(effectiveFromForOccurrence("2026-09-08", "2026-09-05", 15), "2026-09-15");
+assert.equal(effectiveFromForOccurrence("2026-09-08", "2026-08-15", 15), "2026-09-15");
+assert.equal(effectiveFromForOccurrence("2026-09-15", "2026-09-15", 15), "2026-10-15");
 
 const series = { id: "11111111-1111-1111-1111-111111111111", startsOn: "2026-08-15" as const, endsBefore: null };
 const versions = [
@@ -178,3 +189,21 @@ const invalidEndDateBeforeStart = transactionSchema.safeParse({
     specificTag: null,
 });
 assert.equal(invalidEndDateBeforeStart.success, false);
+
+// return-url tests
+assert.equal(sanitizeReturnUrl("/transactions?month=2026-08"), "/transactions?month=2026-08");
+assert.equal(sanitizeReturnUrl("/?view=annual&year=2025"), "/?view=annual&year=2025");
+assert.equal(sanitizeReturnUrl("//evil.com"), "/transactions");
+assert.equal(sanitizeReturnUrl("https://evil.com"), "/transactions");
+assert.equal(sanitizeReturnUrl("javascript:alert(1)"), "/transactions");
+assert.equal(sanitizeReturnUrl(null), "/transactions");
+assert.equal(sanitizeReturnUrl(undefined, "/custom-fallback"), "/custom-fallback");
+
+assert.equal(withReturnUrl("/transactions/123/edit", "/transactions?month=2026-08"), "/transactions/123/edit?returnUrl=%2Ftransactions%3Fmonth%3D2026-08");
+assert.equal(withReturnUrl("/transactions/123/edit?foo=bar", "/transactions?month=2026-08"), "/transactions/123/edit?foo=bar&returnUrl=%2Ftransactions%3Fmonth%3D2026-08");
+assert.equal(withReturnUrl("/transactions/123/edit", null), "/transactions/123/edit");
+assert.equal(withReturnUrl("/transactions/123/edit", "//evil.com"), "/transactions/123/edit");
+
+assert.equal(getReturnUrl("/transactions?month=2026-08"), "/transactions?month=2026-08");
+assert.equal(getReturnUrl("//evil.com"), "/transactions");
+assert.equal(getReturnUrl(null), "/transactions");

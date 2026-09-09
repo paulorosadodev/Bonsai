@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { parseCivilDate, toSaoPauloCivilDate, type CivilDate } from "@/lib/domain/billing-cycle";
-import { isEligibleForRecurrence, nextCivilDate, nextEditableEffectiveFrom } from "@/lib/domain/recurrence";
+import { effectiveFromForOccurrence, isEligibleForRecurrence, nextCivilDate } from "@/lib/domain/recurrence";
 import { createTransactionSchema, recurrenceTargetSchema, transactionSchema, type TransactionFormInput, type TransactionInput } from "@/lib/domain/schemas";
 import { buildBillingEntries } from "@/lib/data/entries";
 import { getRecurringOccurrence } from "@/lib/data/recurrences";
@@ -137,7 +137,7 @@ export async function updateRecurringOccurrence(seriesId: string, occurrenceDate
 
     const today = toSaoPauloCivilDate(new Date());
     const newMonthlyDay = parseCivilDate(parsed.data.purchaseDate as CivilDate).day;
-    const effectiveFrom = nextEditableEffectiveFrom(today, occurrence.monthlyDay, newMonthlyDay);
+    const effectiveFrom = effectiveFromForOccurrence(today, target.data.occurrenceDate as CivilDate, newMonthlyDay);
     const endsBefore = parsed.data.recurringEndDate ? nextCivilDate(parsed.data.recurringEndDate as CivilDate) : null;
 
     return persistRecurrence(

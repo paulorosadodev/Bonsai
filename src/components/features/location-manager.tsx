@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Pencil, Trash2, Check, AlertCircle, MapPin } from "lucide-react";
+import { toast } from "sonner";
 import { createLocation, updateLocation, deleteLocation } from "@/actions/locations";
 import type { LocationOption } from "@/lib/data/locations";
 import { Modal } from "@/components/ui/modal";
@@ -60,9 +61,11 @@ export function LocationManager({ locations }: LocationManagerProps) {
 
         if (!result.ok) {
             setModalError(result.error);
+            toast.error(result.error);
             return;
         }
 
+        toast.success(modalMode === "create" ? "Localidade criada com sucesso" : "Localidade atualizada com sucesso");
         setModalOpen(false);
     }
 
@@ -75,6 +78,9 @@ export function LocationManager({ locations }: LocationManagerProps) {
 
         if (!result.ok) {
             setMainError(result.error);
+            toast.error(result.error);
+        } else {
+            toast.success("Localidade excluída com sucesso");
         }
 
         setDeleteDialog({ open: false, id: "", name: "" });
@@ -84,9 +90,14 @@ export function LocationManager({ locations }: LocationManagerProps) {
         <div className="flex flex-col gap-4">
             {/* Header */}
             <div className="flex items-center justify-between gap-4">
-                <div>
-                    <h2 className="text-lg font-bold text-text">Localidades</h2>
-                    <p className="text-xs text-muted">Destinos utilizados para transações do tipo Uber (ex: Casa, Trabalho, Aeroporto)</p>
+                <div className="flex items-center gap-2.5">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky-400/15 text-sky-400">
+                        <MapPin className="size-4" />
+                    </div>
+                    <div>
+                        <h2 className="text-base font-bold text-text">Localidades</h2>
+                        <p className="text-xs text-muted">Destinos utilizados para transações do tipo Uber (ex: Casa, Trabalho, Aeroporto)</p>
+                    </div>
                 </div>
                 <button type="button" onClick={openCreate} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95">
                     <Plus className="size-4 shrink-0" aria-hidden />
@@ -109,7 +120,7 @@ export function LocationManager({ locations }: LocationManagerProps) {
                     <p className="text-xs text-muted">Cadastre destinos para associar às suas corridas de Uber</p>
                 </div>
             ) : (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 lg:max-h-64 lg:overflow-y-auto lg:pr-1.5">
                     {locations.map((loc) => (
                         <div key={loc.id} className="group flex w-full items-center justify-between rounded-2xl bg-surface-raised p-3.5 transition-colors hover:bg-surface-raised/80">
                             <div className="flex items-center gap-3">

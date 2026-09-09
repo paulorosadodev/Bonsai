@@ -10,6 +10,10 @@ export function currentMonth() {
     return currentCivilDate().slice(0, 7);
 }
 
+export function currentYear() {
+    return Number(currentCivilDate().slice(0, 4));
+}
+
 export function isMonth(value: string) {
     if (!/^\d{4}-\d{2}$/.test(value)) {
         return false;
@@ -19,10 +23,24 @@ export function isMonth(value: string) {
     return year >= 1000 && month >= 1 && month <= 12;
 }
 
+export function isYear(value: string | number | undefined | null): value is number | string {
+    if (!value) return false;
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 2000 && n <= 2100;
+}
+
 export function shiftMonth(month: string, delta: number) {
     const [year, monthNumber] = month.split("-").map(Number);
     const date = new Date(Date.UTC(year, monthNumber - 1 + delta, 1));
     return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+export function shiftYear(year: number, delta: number) {
+    return year + delta;
+}
+
+export function formatYearLabel(year: number) {
+    return `${year}`;
 }
 
 const monthLabels = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"] as const;
@@ -77,8 +95,14 @@ export function isFinancePath(pathname: string) {
 }
 
 export function financeSearchHref(path: string, searchParams: Pick<URLSearchParams, "get">, preserveMonth = false) {
-    const month = preserveMonth ? searchParams.get("month") : undefined;
+    const view = searchParams.get("view");
+    const isAnnual = view === "annual";
+    const year = searchParams.get("year");
+    const month = !isAnnual && preserveMonth ? searchParams.get("month") : undefined;
+
     return searchHref(path, {
+        view: isAnnual ? "annual" : undefined,
+        year: isAnnual && year && isYear(year) ? String(year) : undefined,
         month: month && isMonth(month) ? month : undefined,
         includeReimbursements: searchParams.get("includeReimbursements") === "true",
     });
@@ -87,6 +111,24 @@ export function financeSearchHref(path: string, searchParams: Pick<URLSearchPara
 export function parseMonthParam(searchParams: Record<string, string | string[] | undefined>, fallback = currentMonth()) {
     const month = readParam(searchParams, "month");
     return month && isMonth(month) ? month : fallback;
+}
+
+export function parseYearParam(searchParams: Record<string, string | string[] | undefined>, fallback = currentYear()) {
+    const raw = readParam(searchParams, "year");
+    if (raw && isYear(raw)) {
+        return Number(raw);
+    }
+    // If month is provided, fallback to year from month
+    const rawMonth = readParam(searchParams, "month");
+    if (rawMonth && isMonth(rawMonth)) {
+        return Number(rawMonth.split("-")[0]);
+    }
+    return fallback;
+}
+
+export function parseDashboardView(searchParams: Record<string, string | string[] | undefined>): "monthly" | "annual" {
+    const view = readParam(searchParams, "view");
+    return view === "annual" ? "annual" : "monthly";
 }
 
 export function parseIncludeReimbursements(searchParams: Record<string, string | string[] | undefined>) {
@@ -105,6 +147,30 @@ export function parseTransactionListParams(searchParams: Record<string, string |
     const sort: TransactionSort = sortValue === "date_asc" || sortValue === "amount_desc" || sortValue === "amount_asc" ? sortValue : "date_desc";
 
     return { month, category, paymentMethod, generalTag, specificTag, search, sort, includeReimbursements: true };
+}
+
+export function parseAnnualDashboardListParams(searchParams: Record<string, string | string[] | undefined>) {
+    const year = parseYearParam(searchParams);
+    const category = readParam(searchParams, "category") || undefined;
+    const paymentValue = readParam(searchParams, "paymentMethod");
+    const paymentMethod = paymentValue && (paymentMethods as readonly string[]).includes(paymentValue) ? (paymentValue as PaymentMethod) : undefined;
+    const generalTag = readParam(searchParams, "generalTag") || undefined;
+    const specificTag = readParam(searchParams, "specificTag") || undefined;
+    const search = readParam(searchParams, "search")?.trim() || undefined;
+    const sortValue = readParam(searchParams, "sort");
+    const sort: TransactionSort = sortValue === "date_asc" || sortValue === "amount_desc" || sortValue === "amount_asc" ? sortValue : "date_desc";
+
+    return {
+        year,
+        view: "annual" as const,
+        category,
+        paymentMethod,
+        generalTag,
+        specificTag,
+        search,
+        sort,
+        includeReimbursements: parseIncludeReimbursements(searchParams),
+    };
 }
 
 export function parseInvoiceListParams(searchParams: Record<string, string | string[] | undefined>) {
@@ -134,6 +200,8 @@ export function parseInvoiceListParams(searchParams: Record<string, string | str
 export function parseDashboardListParams(searchParams: Record<string, string | string[] | undefined>) {
     return {
         ...parseTransactionListParams(searchParams),
+        view: parseDashboardView(searchParams),
+        year: parseYearParam(searchParams),
         includeReimbursements: parseIncludeReimbursements(searchParams),
     };
 }

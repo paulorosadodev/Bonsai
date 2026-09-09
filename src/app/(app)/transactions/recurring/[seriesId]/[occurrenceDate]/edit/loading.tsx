@@ -1,5 +1,5 @@
-import { FormSkeleton } from "@/components/features/page-skeleton";
+import { BonsaiLoading } from "@/components/ui/bonsai-loading";
 
 export default function Loading() {
-    return <FormSkeleton />;
+    return <BonsaiLoading />;
 }

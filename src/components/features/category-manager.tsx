@@ -2,9 +2,11 @@
 
 import { useState, useMemo } from "react";
 import { Plus, Pencil, Trash2, Check, AlertCircle, Tag } from "lucide-react";
+import { toast } from "sonner";
 import { createCategory, updateCategory, deleteCategory } from "@/actions/categories";
 import { createSpecificTag, updateSpecificTag, deleteSpecificTag } from "@/actions/tags";
-import type { CategoryOption, SpecificTagOption } from "@/lib/domain/catalog";
+import type { CategoryOption, GeneralTagOption, SpecificTagOption } from "@/lib/domain/catalog";
+import { buildColorUsageMap, buildIconUsageMap, buildSpecificTagIconUsageMap } from "@/lib/domain/catalog-usage";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { Modal } from "@/components/ui/modal";
@@ -14,9 +16,10 @@ import { DynamicIcon } from "./transaction-visuals";
 interface CategoryManagerProps {
     categories: CategoryOption[];
     specificTags?: SpecificTagOption[];
+    generalTags?: GeneralTagOption[];
 }
 
-export function CategoryManager({ categories, specificTags = [] }: CategoryManagerProps) {
+export function CategoryManager({ categories, specificTags = [], generalTags = [] }: CategoryManagerProps) {
     // Map specific tags by category
     const tagsByCategory = useMemo(() => {
         const map = new Map<string, SpecificTagOption[]>();
@@ -40,7 +43,6 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
     const [tagFormOpen, setTagFormOpen] = useState(false);
     const [editingTagId, setEditingTagId] = useState<string | null>(null);
     const [tagName, setTagName] = useState("");
-    const [tagColor, setTagColor] = useState("#A78BFA");
     const [tagIcon, setTagIcon] = useState("");
 
     // Delete Confirmation Dialog state
@@ -65,6 +67,13 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
 
     // Specific tags for active category
     const activeSpecificTags = useMemo(() => (activeCatId ? tagsByCategory.get(activeCatId) || [] : []), [tagsByCategory, activeCatId]);
+
+    // Usage maps for category (compara apenas com outras categorias e tags gerais)
+    const categoryColorUsage = useMemo(() => buildColorUsageMap({ categories, generalTags, excludeId: activeCatId }), [categories, generalTags, activeCatId]);
+    const categoryIconUsage = useMemo(() => buildIconUsageMap({ categories, generalTags, excludeId: activeCatId }), [categories, generalTags, activeCatId]);
+
+    // Usage map para ícones de tags específicas da mesma categoria
+    const tagIconUsage = useMemo(() => buildSpecificTagIconUsageMap({ specificTags: activeSpecificTags, excludeId: editingTagId }), [activeSpecificTags, editingTagId]);
 
     // --- Category actions ---
     function openCreateCategory() {
@@ -114,8 +123,11 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
 
         if (!result.ok) {
             setModalError(result.error);
+            toast.error(result.error);
             return;
         }
+
+        toast.success(catModalMode === "create" ? "Categoria criada com sucesso" : "Categoria atualizada com sucesso");
 
         if (catModalMode === "create") {
             setCatModalOpen(false);
@@ -126,7 +138,6 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
     function startCreateTag() {
         setEditingTagId(null);
         setTagName("");
-        setTagColor(catColor);
         setTagIcon("");
         setTagFormOpen(true);
     }
@@ -134,7 +145,6 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
     function startEditTag(tag: SpecificTagOption) {
         setEditingTagId(tag.id);
         setTagName(tag.name);
-        setTagColor(tag.color || catColor);
         setTagIcon(tag.icon || "");
         setTagFormOpen(true);
     }
@@ -155,13 +165,13 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
         const result = editingTagId
             ? await updateSpecificTag(editingTagId, {
                   name: tagName.trim(),
-                  color: tagColor,
+                  color: catColor,
                   icon: tagIcon ? tagIcon : null,
               })
             : await createSpecificTag({
                   categoryId: activeCatId,
                   name: tagName.trim(),
-                  color: tagColor,
+                  color: catColor,
                   icon: tagIcon ? tagIcon : null,
               });
 
@@ -169,9 +179,11 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
 
         if (!result.ok) {
             setModalError(result.error);
+            toast.error(result.error);
             return;
         }
 
+        toast.success(editingTagId ? "Tag atualizada com sucesso" : "Tag criada com sucesso");
         cancelTagForm();
     }
 
@@ -186,6 +198,9 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
 
         if (!result.ok) {
             setMainError(result.error);
+            toast.error(result.error);
+        } else {
+            toast.success(deleteDialog.type === "category" ? "Categoria excluída com sucesso" : "Tag excluída com sucesso");
         }
 
         if (deleteDialog.type === "category") {
@@ -199,9 +214,14 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
         <div className="flex flex-col gap-4">
             {/* Header */}
             <div className="flex items-center justify-between gap-4">
-                <div>
-                    <h2 className="text-lg font-bold text-text">Categorias e Tags Específicas</h2>
-                    <p className="text-xs text-muted">Gerencie suas categorias e as tags exclusivas vinculadas a cada uma</p>
+                <div className="flex items-center gap-2.5">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-orchid/15 text-orchid">
+                        <Tag className="size-4" />
+                    </div>
+                    <div>
+                        <h2 className="text-base font-bold text-text">Categorias e Tags Específicas</h2>
+                        <p className="text-xs text-muted">Gerencie suas categorias e as tags exclusivas vinculadas a cada uma</p>
+                    </div>
                 </div>
                 <button type="button" onClick={openCreateCategory} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95">
                     <Plus className="size-4 shrink-0" aria-hidden />
@@ -217,7 +237,7 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
             )}
 
             {/* Clean Category List */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 lg:max-h-72 lg:overflow-y-auto lg:pr-1.5">
                 {categories.length === 0 ? (
                     <div className="flex flex-col items-center justify-center rounded-2xl bg-surface-raised py-12 text-center">
                         <Tag className="mb-2 size-8 text-muted" aria-hidden />
@@ -285,9 +305,9 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
                             <input type="text" placeholder="Ex: Alimentação, Transporte, Saúde..." value={catName} onChange={(e) => setCatName(e.target.value)} required maxLength={50} className="rounded-xl bg-surface px-3.5 py-2.5 text-sm text-text outline-none focus:ring-1 focus:ring-violet" autoFocus={catModalMode === "create"} />
                         </div>
 
-                        <ColorPicker value={catColor} onChange={setCatColor} label="Cor da Categoria" />
+                        <ColorPicker value={catColor} onChange={setCatColor} label="Cor da Categoria" usedMap={categoryColorUsage} />
 
-                        <IconPicker value={catIcon} onChange={setCatIcon} color={catColor} label="Ícone da Categoria" />
+                        <IconPicker value={catIcon} onChange={setCatIcon} color={catColor} label="Ícone da Categoria" usedMap={categoryIconUsage} />
 
                         <div className="flex items-center justify-end gap-2 pt-2">
                             <button type="button" disabled={loading} onClick={() => setCatModalOpen(false)} className="rounded-xl px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface hover:text-text">
@@ -326,9 +346,14 @@ export function CategoryManager({ categories, specificTags = [] }: CategoryManag
                                         <input type="text" placeholder="Ex: Restaurante, Celular, Academia..." value={tagName} onChange={(e) => setTagName(e.target.value)} required maxLength={50} className="rounded-xl bg-surface-raised px-3 py-2 text-xs text-text outline-none focus:ring-1 focus:ring-violet" autoFocus />
                                     </div>
 
-                                    <ColorPicker value={tagColor} onChange={setTagColor} label="Cor da Tag" />
+                                    <div className="flex items-center gap-2 rounded-xl bg-surface-raised px-3 py-2 text-xs text-muted">
+                                        <span className="size-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: catColor }} aria-hidden />
+                                        <span>
+                                            Cor vinculada à categoria: <strong className="font-semibold text-text">{catName || "Categoria"}</strong>
+                                        </span>
+                                    </div>
 
-                                    <IconPicker value={tagIcon} onChange={setTagIcon} color={tagColor} label="Ícone (opcional)" optional />
+                                    <IconPicker value={tagIcon} onChange={setTagIcon} color={catColor} label="Ícone (opcional)" optional usedMap={tagIconUsage} />
 
                                     <div className="flex items-center justify-end gap-2 pt-1">
                                         <button type="button" onClick={cancelTagForm} className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-raised hover:text-text">

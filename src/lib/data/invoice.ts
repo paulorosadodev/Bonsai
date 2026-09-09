@@ -9,8 +9,9 @@ import { getUserCategoriesMap } from "./categories";
 import { getUserGeneralTagsMap, getUserSpecificTagsMap } from "./tags";
 import { getUserLocationsMap } from "./locations";
 import { hasReimbursement } from "./entries";
-import { loadRecurrenceStateFrom, projectLoadedRecurrences } from "./recurrences";
-import { formatTransactionName, type InvoiceData, type InvoiceListItem, type TagInfo } from "./types";
+import { earliestSeriesStart, loadRecurrenceStateFrom, projectLoadedRecurrences } from "./recurrences";
+import { formatTransactionName, type DashboardHistoryPoint, type InvoiceData, type InvoiceListItem, type TagInfo } from "./types";
+import type { CivilDate } from "@/lib/domain/billing-cycle";
 
 function normalizeSearchText(text: string) {
     return text
@@ -38,31 +39,68 @@ type InvoiceRow = {
     } | null;
 };
 
+type HistoryEntryRow = {
+    amount_cents: number;
+    competence_date: string;
+    transactions: {
+        general_tag_ids: string[];
+    } | null;
+};
+
 export async function getInvoice(filters: z.input<typeof transactionFiltersSchema> = {}): Promise<InvoiceData> {
     const parsed = transactionFiltersSchema.parse(filters);
     const today = toSaoPauloCivilDate(new Date());
-    const settings = await getSettings();
-    const month = parsed.month ?? getOpenInvoiceMonth(today, settings.closingDay, settings.dueDay);
+    const { supabase, user } = await requireUser();
+    const settingsPromise = getSettings();
+    const recurrencePromise = loadRecurrenceStateFrom(supabase);
+    const categoriesPromise = getUserCategoriesMap(supabase, user.id);
+    const generalTagsPromise = getUserGeneralTagsMap(supabase, user.id);
+    const specificTagsPromise = getUserSpecificTagsMap(supabase, user.id);
+    const locationsPromise = getUserLocationsMap(supabase, user.id);
+
+    const month = parsed.month ?? getOpenInvoiceMonth(today, (await settingsPromise).closingDay, (await settingsPromise).dueDay);
     const prevMonth = shiftCalendarMonth(month, -1);
     const competence = monthStart(month);
     const prevCompetence = monthStart(prevMonth);
-    const { supabase, user } = await requireUser();
 
-    const [entriesResult, recurrence, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([
-        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method)").in("competence_date", [prevCompetence, competence]).not("invoice_due_date", "is", null).order("invoice_due_date", { ascending: true }),
-        loadRecurrenceStateFrom(supabase),
-        getUserCategoriesMap(supabase, user.id),
-        getUserGeneralTagsMap(supabase, user.id),
-        getUserSpecificTagsMap(supabase, user.id),
-        getUserLocationsMap(supabase, user.id),
+    const [settings, entriesResult, historyEntriesResult, recurrence, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([
+        settingsPromise,
+        supabase
+            .from("transaction_entries")
+            .select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method)")
+            .in("competence_date", [prevCompetence, competence])
+            .not("invoice_due_date", "is", null)
+            .order("invoice_due_date", { ascending: true }),
+        supabase
+            .from("transaction_entries")
+            .select("amount_cents, competence_date, transactions!inner(general_tag_ids)")
+            .gte("competence_date", monthStart(shiftCalendarMonth(month, -36)))
+            .lte("competence_date", monthStart(shiftCalendarMonth(month, 3)))
+            .not("invoice_due_date", "is", null)
+            .order("competence_date", { ascending: true }),
+        recurrencePromise,
+        categoriesPromise,
+        generalTagsPromise,
+        specificTagsPromise,
+        locationsPromise,
     ]);
 
-    if (entriesResult.error) {
+    if (entriesResult.error || historyEntriesResult.error) {
         throw new Error("Não foi possível carregar a fatura");
     }
 
-    const projected: InvoiceListItem[] = projectLoadedRecurrences(recurrence, monthStart(shiftCalendarMonth(month, -2)), monthEnd(month), today, settings)
-        .filter((occurrence) => occurrence.paymentMethod === "credit" && (occurrence.entry.competenceDate === competence || occurrence.entry.competenceDate === prevCompetence) && occurrence.entry.invoiceDueDate)
+    const earliest = earliestSeriesStart(recurrence);
+    const fallbackOrigin = monthStart(shiftCalendarMonth(month, -3)) as CivilDate;
+    const origin = (earliest && earliest < fallbackOrigin ? earliest : fallbackOrigin) as CivilDate;
+    const currentMonthStr = today.slice(0, 7);
+    const baseMonth = month > currentMonthStr ? month : currentMonthStr;
+    const horizonMonth = shiftCalendarMonth(baseMonth, 3);
+    const recurrenceEnd = monthEnd(horizonMonth) as CivilDate;
+
+    const allProjected = projectLoadedRecurrences(recurrence, origin, recurrenceEnd, today, settings).filter((occurrence) => occurrence.paymentMethod === "credit" && occurrence.entry.invoiceDueDate);
+
+    const projected: InvoiceListItem[] = allProjected
+        .filter((occurrence) => occurrence.entry.competenceDate === competence || occurrence.entry.competenceDate === prevCompetence)
         .map((occurrence) => {
             const cat = categoriesMap.get(occurrence.categoryId) ?? {
                 id: occurrence.categoryId,
@@ -204,6 +242,38 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
 
     const filteredTotalCents = filteredEntries.reduce((sum, entry) => sum + entry.amountCents, 0);
 
+    const historyLines = [
+        ...((historyEntriesResult.data as HistoryEntryRow[] | null) ?? []).map((row) => ({
+            amountCents: row.amount_cents,
+            competenceDate: row.competence_date,
+            generalTagIds: row.transactions?.general_tag_ids ?? [],
+            isForecast: false,
+        })),
+        ...allProjected.map((occurrence) => ({
+            amountCents: occurrence.entry.amountCents,
+            competenceDate: occurrence.entry.competenceDate,
+            generalTagIds: occurrence.generalTagIds ?? [],
+            isForecast: occurrence.isForecast,
+        })),
+    ].filter((line) => {
+        if (parsed.includeReimbursements) return true;
+        const tags = line.generalTagIds.map((id) => generalTagsMap.get(id)).filter(Boolean);
+        return !hasReimbursement(tags as Array<{ name?: string }>);
+    });
+
+    const maxForecastCompetence = monthStart(shiftCalendarMonth(month, 3));
+    const historyMap = new Map<string, number>();
+    for (const row of historyLines) {
+        if (row.isForecast && row.competenceDate > maxForecastCompetence) {
+            continue;
+        }
+
+        const key = row.competenceDate.slice(0, 7);
+        historyMap.set(key, (historyMap.get(key) ?? 0) + row.amountCents);
+    }
+
+    const history: DashboardHistoryPoint[] = [...historyMap.entries()].map(([historyMonth, amountCents]) => ({ month: historyMonth, amountCents })).sort((a, b) => a.month.localeCompare(b.month));
+
     return {
         month,
         invoiceDueDate,
@@ -212,5 +282,6 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
         filteredTotalCents,
         entries: filteredEntries,
         settings,
+        history,
     };
 }

@@ -30,3 +30,13 @@ export function formatBrl(cents: number): string {
     const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     return `${sign}R$ ${grouped},${fraction}`;
 }
+
+export function formatChartValue(cents: number): string {
+    if (!Number.isSafeInteger(cents) || cents <= 0) return "R$ 0";
+    const sign = cents < 0 ? "-" : "";
+    const absolute = Math.abs(cents);
+    const whole = Math.floor(absolute / 100);
+    const fraction = absolute % 100;
+    const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return fraction > 0 ? `${sign}R$ ${grouped},${String(fraction).padStart(2, "0")}` : `${sign}R$ ${grouped}`;
+}

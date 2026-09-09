@@ -85,6 +85,10 @@ export async function updateCategory(id: string, input: CategoryUpdateInput): Pr
         return { ok: false, error: genericSaveError };
     }
 
+    if (parsed.data.color !== undefined) {
+        await supabase.from("user_specific_tags").update({ color: parsed.data.color }).eq("category_id", idParsed.data).eq("user_id", user.id);
+    }
+
     revalidateFinance();
     return { ok: true, id: data.id };
 }

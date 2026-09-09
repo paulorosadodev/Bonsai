@@ -43,7 +43,7 @@ async function persistTransaction(id: string | null, transaction: TransactionInp
         invoice_due_date: entry.invoiceDueDate,
     }));
     const { data, error } = await supabase.rpc("persist_transaction", {
-        p_transaction_id: (id ?? undefined) as unknown as string,
+        p_transaction_id: id ?? undefined,
         p_transaction: {
             kind: "transaction",
             name: transaction.name,
@@ -61,6 +61,7 @@ async function persistTransaction(id: string | null, transaction: TransactionInp
     });
 
     if (error || !data) {
+        console.error("persistTransaction error:", error);
         return { ok: false, error: error?.code === "P0002" ? "Transação não encontrada" : genericSaveError };
     }
 

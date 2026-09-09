@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { Car, Unlock, Plus, Check, AlertCircle } from "lucide-react";
 
+import { getReturnUrl } from "@/lib/navigation/return-url";
+
 import { createTransaction, updateTransaction, updateRecurringOccurrence } from "@/actions";
 import { createLocation } from "@/actions/locations";
 import { paymentMethodLabels, type CategoryOption, type GeneralTagOption, type SpecificTagOption } from "@/lib/domain/catalog";
 import { parseCivilDate, type CivilDate } from "@/lib/domain/billing-cycle";
-import { isEligibleForRecurrence, nextEditableEffectiveFrom, previousCivilDate } from "@/lib/domain/recurrence";
+import { effectiveFromForOccurrence, isEligibleForRecurrence, previousCivilDate } from "@/lib/domain/recurrence";
 import { formatBrl, parseBrlToCents } from "@/lib/domain/money";
 import { createTransactionSchema, transactionSchema, type TransactionFormInput } from "@/lib/domain/schemas";
 import type { RecurringOccurrenceDetail, TransactionRecord } from "@/lib/data/types";
@@ -28,6 +30,8 @@ import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/components/ui/cn";
 import { formatCivilDate } from "./params";
 import { getItemVisual, paymentVisuals } from "./transaction-visuals";
+import { NameAutocomplete } from "./name-autocomplete";
+import type { TransactionSuggestion } from "@/actions/suggestions";
 
 function centsToAmountInput(cents: number) {
     return formatBrl(cents);
@@ -78,10 +82,13 @@ interface TransactionFormProps {
     generalTags?: GeneralTagOption[];
     specificTags?: SpecificTagOption[];
     locations?: LocationOption[];
+    returnUrl?: string;
 }
 
-export function TransactionForm({ mode, transaction, recurrence, today, categories = [], generalTags = [], specificTags = [], locations = [] }: TransactionFormProps) {
+export function TransactionForm({ mode, transaction, recurrence, today, categories = [], generalTags = [], specificTags = [], locations = [], returnUrl }: TransactionFormProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const resolvedReturnUrl = getReturnUrl(returnUrl ?? searchParams.get("returnUrl"), "/transactions");
     const editingRecurrence = Boolean(recurrence);
     const defaultCat = categories[0]?.id;
     const defaults = toFormValues(recurrence ?? transaction, today, editingRecurrence, defaultCat);
@@ -115,6 +122,42 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
     const initialIsUber = Boolean((transaction && "locationId" in transaction && transaction.locationId) || (transaction && transaction.name.trim().toLowerCase() === "uber") || defaults.name.trim().toLowerCase() === "uber" || (defaults.specificTag && uberTag && defaults.specificTag === uberTag.id));
     const [isUberLocked, setIsUberLocked] = useState(initialIsUber);
 
+    const [categoryManuallyModified, setCategoryManuallyModified] = useState(false);
+    const [tagsManuallyModified, setTagsManuallyModified] = useState(false);
+    const [pulsingField, setPulsingField] = useState<{ category?: boolean; tags?: boolean }>({});
+
+    function triggerPulse(type: "category" | "tags") {
+        setPulsingField((prev) => ({ ...prev, [type]: true }));
+        setTimeout(() => {
+            setPulsingField((prev) => ({ ...prev, [type]: false }));
+        }, 1600);
+    }
+
+    function handleSuggestionSelected(suggestion: TransactionSuggestion) {
+        if (mode === "edit" && name.trim().toLowerCase() === defaults.name.trim().toLowerCase()) {
+            return;
+        }
+
+        if (!categoryManuallyModified) {
+            const catExists = categories.some((c) => c.id === suggestion.categoryId);
+            if (catExists) {
+                setValue("category", suggestion.categoryId, { shouldValidate: true, shouldDirty: true });
+                triggerPulse("category");
+            }
+        }
+
+        if (!tagsManuallyModified) {
+            const targetCategory = !categoryManuallyModified ? suggestion.categoryId : category;
+            const validSpecTag = suggestion.specificTagId && specificTags.some((t) => t.id === suggestion.specificTagId && t.categoryId === targetCategory);
+            setValue("specificTag", validSpecTag ? suggestion.specificTagId : null, { shouldValidate: true, shouldDirty: true });
+
+            const validGenTags = (suggestion.generalTagIds ?? []).filter((gid) => generalTags.some((gt) => gt.id === gid));
+            setValue("generalTags", validGenTags, { shouldValidate: true, shouldDirty: true });
+
+            triggerPulse("tags");
+        }
+    }
+
     const [quickAddOpen, setQuickAddOpen] = useState(false);
     const [quickName, setQuickName] = useState("");
     const [quickLoading, setQuickLoading] = useState(false);
@@ -135,7 +178,7 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
     const canRecur = isEligibleForRecurrence(paymentMethod, Number.isFinite(installmentCount) ? installmentCount : 1);
     const installmentForcedStandalone = paymentMethod === "credit" && installmentCount > 1;
     const newMonthlyDay = /^\d{4}-\d{2}-\d{2}$/.test(purchaseDate) ? parseCivilDate(purchaseDate as CivilDate).day : 1;
-    const effectFrom = editingRecurrence ? nextEditableEffectiveFrom(today as CivilDate, recurrence?.monthlyDay ?? newMonthlyDay, newMonthlyDay) : null;
+    const effectFrom = editingRecurrence ? effectiveFromForOccurrence(today as CivilDate, recurrence?.occurrenceDate as CivilDate, newMonthlyDay) : null;
 
     async function handleQuickAddLocation(e: React.FormEvent) {
         e.preventDefault();
@@ -169,7 +212,7 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
         }
 
         toast.success(mode === "edit" ? "Transação atualizada" : "Transação criada");
-        router.push("/transactions");
+        router.push(resolvedReturnUrl);
         router.refresh();
     }
 
@@ -203,26 +246,34 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                         <input type="hidden" {...register("name")} />
                     </div>
                 ) : (
-                    <Field
-                        id="name"
-                        label="Nome"
-                        error={errors.name?.message}
-                        placeholder="Lámen"
-                        maxLength={120}
-                        {...register("name", {
-                            onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-                                if (e.target.value.trim().toLowerCase() === "uber") {
-                                    setIsUberLocked(true);
-                                    setValue("name", "Uber", { shouldValidate: true, shouldDirty: true });
-                                    if (transportCategory) {
-                                        setValue("category", transportCategory.id, { shouldValidate: true, shouldDirty: true });
+                    <Controller
+                        control={control}
+                        name="name"
+                        render={({ field }) => (
+                            <NameAutocomplete
+                                id="name"
+                                label="Nome"
+                                error={errors.name?.message}
+                                placeholder="Lámen"
+                                maxLength={120}
+                                value={field.value ?? ""}
+                                onChange={(val) => {
+                                    field.onChange(val);
+                                    if (val.trim().toLowerCase() === "uber") {
+                                        setIsUberLocked(true);
+                                        setValue("name", "Uber", { shouldValidate: true, shouldDirty: true });
+                                        if (transportCategory) {
+                                            setValue("category", transportCategory.id, { shouldValidate: true, shouldDirty: true });
+                                        }
+                                        if (uberTag) {
+                                            setValue("specificTag", uberTag.id, { shouldValidate: true, shouldDirty: true });
+                                        }
                                     }
-                                    if (uberTag) {
-                                        setValue("specificTag", uberTag.id, { shouldValidate: true, shouldDirty: true });
-                                    }
-                                }
-                            },
-                        })}
+                                }}
+                                onSuggestionSelected={handleSuggestionSelected}
+                                onBlur={field.onBlur}
+                            />
+                        )}
                     />
                 )}
 
@@ -364,8 +415,9 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                                 selected={category === item.id}
                                 visual={getItemVisual(item)}
                                 layoutId="category-selection"
-                                className="justify-start"
+                                className={cn("justify-start", pulsingField.category && category === item.id && "animate-suggestion-pulse")}
                                 onClick={() => {
+                                    setCategoryManuallyModified(true);
                                     const currentTagId = getValues("specificTag");
                                     setValue("category", item.id, { shouldValidate: true, shouldDirty: true });
                                     if (currentTagId) {
@@ -396,7 +448,9 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                                     selected={specificTag === tag.id}
                                     visual={getItemVisual(tag)}
                                     layoutId="specific-tag-selection"
+                                    className={pulsingField.tags && specificTag === tag.id ? "animate-suggestion-pulse" : undefined}
                                     onClick={() => {
+                                        setTagsManuallyModified(true);
                                         const nextTag = specificTag === tag.id ? null : tag.id;
                                         setValue("specificTag", nextTag, { shouldValidate: true, shouldDirty: true });
                                         if (uberTag && nextTag === uberTag.id) {
@@ -430,7 +484,9 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                                         selected={selected}
                                         visual={getItemVisual(tag)}
                                         layoutId={`general-tag-${tag.id}`}
+                                        className={pulsingField.tags && selected ? "animate-suggestion-pulse" : undefined}
                                         onClick={() => {
+                                            setTagsManuallyModified(true);
                                             const next = selected ? selectedTags.filter((item) => item !== tag.id) : [...selectedTags, tag.id];
                                             setValue("generalTags", next, { shouldValidate: true, shouldDirty: true });
                                         }}

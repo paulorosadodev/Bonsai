@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { paymentMethodLabels } from "@/lib/domain/catalog";
 import { formatBrl } from "@/lib/domain/money";
 import type { TransactionListItem } from "@/lib/data/types";
+import { withReturnUrl } from "@/lib/navigation/return-url";
+import { recordNavigationState, useRestoreScroll } from "@/lib/navigation/scroll-restoration";
 import { formatCivilDate } from "./params";
 import { getItemVisual, paymentVisuals, recurringVisual } from "./transaction-visuals";
 import { VisualBadge } from "@/components/ui/visual-badge";
@@ -16,11 +21,18 @@ function paymentLabel(item: TransactionListItem) {
 }
 
 export function TransactionList({ items }: { items: TransactionListItem[] }) {
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const queryString = searchParams.toString();
+    const currentUrl = queryString ? `${pathname}?${queryString}` : pathname;
+
+    useRestoreScroll(currentUrl);
+
     return (
         <ul className="flex flex-col gap-3">
             {items.map((item) => (
                 <li key={item.key}>
-                    <Link href={item.editHref} className="flex flex-col gap-3 rounded-2xl bg-surface p-4 transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet">
+                    <Link id={`tx-${item.key}`} href={withReturnUrl(item.editHref, currentUrl)} onClick={() => recordNavigationState(currentUrl, item.key)} className="flex flex-col gap-3 rounded-2xl bg-surface p-4 transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet">
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 flex-col gap-1">
                                 <p className="font-medium text-text">{item.name}</p>

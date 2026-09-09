@@ -1,5 +1,5 @@
 import { createElement, type CSSProperties, type ComponentType } from "react";
-import * as LucideIcons from "lucide-react";
+import { Baby, Bolt, Briefcase, BusFront, Car, Circle, CircleEllipsis, Coffee, CreditCard, Dog, DollarSign, Dumbbell, Fuel, Gamepad2, Gift, GraduationCap, HandCoins, Handshake, HeartPulse, House, PartyPopper, Pill, Plane, QrCode, ReceiptText, Repeat, Shirt, ShoppingBasket, Smartphone, Sparkles, Stethoscope, Tag, Ticket, Tv, UserRound, UsersRound, Utensils, Wallet, Wifi } from "lucide-react";
 import type { PaymentMethod } from "@/lib/domain/catalog";
 
 export type IconComponent = ComponentType<{ className?: string; "aria-hidden"?: boolean; style?: CSSProperties }>;
@@ -10,13 +10,55 @@ export type TransactionVisual = {
 };
 
 export const paymentVisuals: Record<PaymentMethod, TransactionVisual> = {
-    pix: { color: "#5EEAD4", icon: LucideIcons.QrCode },
-    credit: { color: "#7DD3FC", icon: LucideIcons.CreditCard },
+    pix: { color: "#5EEAD4", icon: QrCode },
+    credit: { color: "#7DD3FC", icon: CreditCard },
 };
 
 export const recurringVisual: TransactionVisual = {
     color: "#E879F9",
-    icon: LucideIcons.Repeat,
+    icon: Repeat,
+};
+
+const ICON_MAP: Record<string, IconComponent> = {
+    Baby,
+    Bolt,
+    Briefcase,
+    BusFront,
+    Car,
+    Circle,
+    CircleEllipsis,
+    Coffee,
+    CreditCard,
+    Dog,
+    DollarSign,
+    Dumbbell,
+    Fuel,
+    Gamepad2,
+    Gift,
+    GraduationCap,
+    HandCoins,
+    Handshake,
+    HeartPulse,
+    House,
+    PartyPopper,
+    Pill,
+    Plane,
+    QrCode,
+    ReceiptText,
+    Repeat,
+    Shirt,
+    ShoppingBasket,
+    Smartphone,
+    Sparkles,
+    Stethoscope,
+    Tag,
+    Ticket,
+    Tv,
+    UserRound,
+    UsersRound,
+    Utensils,
+    Wallet,
+    Wifi,
 };
 
 function toPascalCase(str: string): string {
@@ -25,23 +67,19 @@ function toPascalCase(str: string): string {
 
 export function getLucideIcon(iconName?: string | null): IconComponent {
     if (!iconName) {
-        return LucideIcons.Tag;
+        return Tag;
     }
 
-    const icons = LucideIcons as Record<string, unknown>;
-
-    // Direct match
-    if (typeof icons[iconName] === "function" || (typeof icons[iconName] === "object" && icons[iconName] !== null)) {
-        return icons[iconName] as IconComponent;
+    if (ICON_MAP[iconName]) {
+        return ICON_MAP[iconName];
     }
 
-    // PascalCase normalization (e.g. "receipt-text" -> "ReceiptText")
     const pascal = toPascalCase(iconName);
-    if (typeof icons[pascal] === "function" || (typeof icons[pascal] === "object" && icons[pascal] !== null)) {
-        return icons[pascal] as IconComponent;
+    if (ICON_MAP[pascal]) {
+        return ICON_MAP[pascal];
     }
 
-    return LucideIcons.Tag;
+    return Tag;
 }
 
 export function DynamicIcon({ name, className, style }: { name?: string | null; className?: string; style?: CSSProperties }) {

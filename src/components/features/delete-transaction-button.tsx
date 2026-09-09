@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { deleteRecurringOccurrence } from "@/actions/recurrences";
 import { deleteTransaction } from "@/actions/transactions";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
+import { getReturnUrl } from "@/lib/navigation/return-url";
 
-export function DeleteTransactionButton({ id, name, kind = "transaction", occurrenceDate }: { id: string; name: string; kind?: "transaction" | "recurrence"; occurrenceDate?: string }) {
+export function DeleteTransactionButton({ id, name, kind = "transaction", occurrenceDate, returnUrl }: { id: string; name: string; kind?: "transaction" | "recurrence"; occurrenceDate?: string; returnUrl?: string }) {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const resolvedReturnUrl = getReturnUrl(returnUrl ?? searchParams.get("returnUrl"), "/transactions");
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState(false);
     const recurring = kind === "recurrence";
@@ -27,7 +30,7 @@ export function DeleteTransactionButton({ id, name, kind = "transaction", occurr
 
         setOpen(false);
         toast.success(recurring ? "Recorrência encerrada" : "Transação excluída");
-        router.push("/transactions");
+        router.push(resolvedReturnUrl);
         router.refresh();
     }
 

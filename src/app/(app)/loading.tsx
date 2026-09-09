@@ -1,5 +1,5 @@
-import { PageSkeleton } from "@/components/features/page-skeleton";
+import { BonsaiLoading } from "@/components/ui/bonsai-loading";
 
 export default function Loading() {
-    return <PageSkeleton blocks={3} />;
+    return <BonsaiLoading />;
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { settingsSchema, type SettingsInput } from "@/lib/domain/schemas";
 import { requireUser } from "@/lib/supabase/server";
 import { buildBillingEntries } from "@/lib/data/entries";
-import { currentCompetenceStart } from "@/lib/data/month";
+import { currentCompetenceStart, currentMonth } from "@/lib/data/month";
 import type { PaymentMethod } from "@/lib/domain/catalog";
 import { fromZodError, genericSaveError, type ActionResult } from "./result";
 
@@ -31,6 +31,28 @@ export async function saveSettings(input: SettingsInput): Promise<ActionResult> 
     }
 
     const { supabase, user } = await requireUser();
+
+    if (parsed.data.monthlyBudget !== undefined) {
+        const thisMonth = currentMonth();
+        if (parsed.data.monthlyBudget !== null && parsed.data.monthlyBudget > 0) {
+            const { error: budgetError } = await supabase.from("user_monthly_budgets").upsert(
+                {
+                    user_id: user.id,
+                    effective_month: thisMonth,
+                    budget_cents: parsed.data.monthlyBudget,
+                    updated_at: new Date().toISOString(),
+                },
+                { onConflict: "user_id,effective_month" },
+            );
+            if (budgetError) {
+                console.error("Budget save error:", budgetError);
+                return { ok: false, error: genericSaveError };
+            }
+        } else if (parsed.data.monthlyBudget === null || parsed.data.monthlyBudget === 0) {
+            await supabase.from("user_monthly_budgets").delete().eq("user_id", user.id).eq("effective_month", thisMonth);
+        }
+    }
+
     const { data: current, error: currentError } = await supabase.from("user_settings").select("closing_day, due_day").eq("user_id", user.id).maybeSingle();
 
     if (currentError) {
@@ -108,7 +130,7 @@ export async function saveSettings(input: SettingsInput): Promise<ActionResult> 
     }
 
     const { error: persistError } = await supabase.rpc("persist_transaction", {
-        p_transaction_id: undefined as unknown as string,
+        p_transaction_id: undefined,
         p_transaction: {
             kind: "settings",
             closing_day: parsed.data.closingDay,
@@ -118,6 +140,7 @@ export async function saveSettings(input: SettingsInput): Promise<ActionResult> 
     });
 
     if (persistError) {
+        console.error("persistSettings error:", persistError);
         return { ok: false, error: genericSaveError };
     }
 

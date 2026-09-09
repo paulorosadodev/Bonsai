@@ -124,6 +124,15 @@ export function nextEditableEffectiveFrom(today: CivilDate, oldMonthlyDay: numbe
     throw new Error("Não foi possível calcular a próxima ocorrência");
 }
 
+export function effectiveFromForOccurrence(today: CivilDate, occurrenceDate: CivilDate, newMonthlyDay: number): CivilDate {
+    if (occurrenceDate > today) {
+        const parts = parseCivilDate(occurrenceDate);
+        return occurrenceDateInMonth(parts.year, parts.month, newMonthlyDay);
+    }
+
+    return nextEditableEffectiveFrom(today, newMonthlyDay, newMonthlyDay);
+}
+
 export function nextUnrealizedOccurrence(today: CivilDate, monthlyDay: number, from: CivilDate = today): CivilDate {
     const fromParts = parseCivilDate(from);
     let year = fromParts.year;

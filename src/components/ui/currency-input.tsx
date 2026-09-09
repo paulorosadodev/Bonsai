@@ -194,7 +194,7 @@ export function CurrencyInput({ id: explicitId, label, value: controlledValue, d
                 </p>
             ) : null}
             {hint && !error ? (
-                <p id={hintId} className="text-sm text-muted">
+                <p id={hintId} className="text-xs text-muted">
                     {hint}
                 </p>
             ) : null}

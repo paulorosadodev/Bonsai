@@ -41,7 +41,7 @@ export function BottomNav() {
     const carryFinanceQuery = isFinancePath(pathname);
 
     return (
-        <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-orchid/50 bg-surface shadow-[0_-16px_40px_rgb(8_5_16/0.85),inset_0_1px_0_rgb(216_180_254/0.28)] pb-[env(safe-area-inset-bottom,0px)]">
+        <nav aria-label="Principal" className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-orchid/50 bg-surface shadow-[0_-16px_40px_rgb(8_5_16/0.85),inset_0_1px_0_rgb(216_180_254/0.28)] pb-[env(safe-area-inset-bottom,0px)] lg:hidden">
             <div className="mx-auto grid h-18 max-w-lg grid-cols-5">
                 {leftTabs.map((tab) => (
                     <NavTab key={tab.href} href={carryFinanceQuery ? financeSearchHref(tab.href, searchParams, tab.match(pathname)) : tab.href} label={tab.label} icon={tab.icon} current={tab.match(pathname)} />

@@ -6,31 +6,6 @@ export type Database = {
     __InternalSupabase: {
         PostgrestVersion: "14.5";
     };
-    graphql_public: {
-        Tables: {
-            [_ in never]: never;
-        };
-        Views: {
-            [_ in never]: never;
-        };
-        Functions: {
-            graphql: {
-                Args: {
-                    extensions?: Json;
-                    operationName?: string;
-                    query?: string;
-                    variables?: Json;
-                };
-                Returns: Json;
-            };
-        };
-        Enums: {
-            [_ in never]: never;
-        };
-        CompositeTypes: {
-            [_ in never]: never;
-        };
-    };
     public: {
         Tables: {
             recurring_series: {
@@ -352,6 +327,33 @@ export type Database = {
                 };
                 Relationships: [];
             };
+            user_monthly_budgets: {
+                Row: {
+                    budget_cents: number;
+                    created_at: string;
+                    effective_month: string;
+                    id: string;
+                    updated_at: string;
+                    user_id: string;
+                };
+                Insert: {
+                    budget_cents: number;
+                    created_at?: string;
+                    effective_month: string;
+                    id?: string;
+                    updated_at?: string;
+                    user_id: string;
+                };
+                Update: {
+                    budget_cents?: number;
+                    created_at?: string;
+                    effective_month?: string;
+                    id?: string;
+                    updated_at?: string;
+                    user_id?: string;
+                };
+                Relationships: [];
+            };
             user_settings: {
                 Row: {
                     closing_day: number;
@@ -460,8 +462,24 @@ export type Database = {
                 Returns: string;
             };
             persist_transaction: {
-                Args: { p_entries: Json; p_transaction: Json; p_transaction_id: string };
+                Args: {
+                    p_entries?: Json;
+                    p_transaction?: Json;
+                    p_transaction_id?: string;
+                };
                 Returns: string;
+            };
+            suggest_transaction_names: {
+                Args: { p_limit?: number; p_query: string };
+                Returns: {
+                    category_color: string;
+                    category_icon: string;
+                    category_id: string;
+                    category_name: string;
+                    general_tag_ids: string[];
+                    name: string;
+                    specific_tag_id: string;
+                }[];
             };
         };
         Enums: {
@@ -577,9 +595,6 @@ export type CompositeTypes<
       : never;
 
 export const Constants = {
-    graphql_public: {
-        Enums: {},
-    },
     public: {
         Enums: {
             payment_method: ["pix", "credit"],

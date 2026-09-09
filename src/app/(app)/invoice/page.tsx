@@ -11,6 +11,7 @@ import { MonthSwitcher } from "@/components/features/month-switcher";
 import { TransactionFilters } from "@/components/features/transaction-filters";
 import { currentCivilDate, formatCivilDate, parseInvoiceListParams } from "@/components/features/params";
 import { formatBrl } from "@/lib/domain/money";
+import { HistoryChart } from "@/components/features/dashboard-charts";
 
 export default async function InvoicePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
     const params = await searchParams;
@@ -18,10 +19,12 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
     const [invoice, categories, generalTags, specificTags] = await Promise.all([getInvoice(filters), getCategories(), getGeneralTags(), getSpecificTags()]);
 
     const hasActiveFilters = Boolean(filters.search || filters.category || filters.generalTag || filters.specificTag || (filters.sort && filters.sort !== "date_desc"));
+    const hasHistory = invoice.history.some((item) => item.amountCents > 0);
 
     return (
         <div className="flex flex-col gap-4">
             <InvoiceCycleCard closingDay={invoice.settings.closingDay} dueDay={invoice.settings.dueDay} today={currentCivilDate()} />
+            {hasHistory ? <HistoryChart items={invoice.history} selectedMonth={invoice.month} centered /> : null}
             <MonthSwitcher month={invoice.month} />
             <Card className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-3">

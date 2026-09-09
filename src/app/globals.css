@@ -17,6 +17,12 @@
     --page-pad-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 3.25rem);
 }
 
+@media (min-width: 1024px) {
+    :root {
+        --page-pad-bottom: 1.5rem;
+    }
+}
+
 @theme inline {
     --color-ink: var(--ink);
     --color-surface: var(--surface);
@@ -88,6 +94,15 @@ body {
     background: var(--violet);
 }
 
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
 *::-webkit-scrollbar-corner {
     background: var(--ink);
 }
@@ -126,6 +141,10 @@ svg.recharts-surface:focus {
 
 ::backdrop {
     background: rgb(16 11 30 / 0.72);
+}
+
+[data-sonner-toaster] {
+    z-index: 99999 !important;
 }
 
 [data-sonner-toaster][data-sonner-theme="dark"] {
@@ -170,6 +189,144 @@ svg.recharts-surface:focus {
     background: color-mix(in srgb, var(--violet) 28%, var(--surface)) !important;
     border-color: color-mix(in srgb, var(--violet) 58%, var(--surface)) !important;
     color: var(--orchid) !important;
+}
+
+@keyframes suggestion-pulse {
+    0% {
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--choice-color, var(--violet)) 65%, transparent);
+    }
+    50% {
+        box-shadow: 0 0 0 6px color-mix(in srgb, var(--choice-color, var(--violet)) 0%, transparent);
+    }
+    100% {
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--choice-color, var(--violet)) 0%, transparent);
+    }
+}
+
+.animate-suggestion-pulse {
+    animation: suggestion-pulse 0.75s ease-out 2;
+}
+
+@keyframes bonsai-glow {
+    0%,
+    100% {
+        opacity: 0.3;
+        transform: scale(0.94);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.08);
+    }
+}
+
+@keyframes bonsai-float {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0);
+    }
+    50% {
+        transform: translate3d(0, -8px, 0);
+    }
+}
+
+@keyframes bonsai-ring {
+    0% {
+        transform: scale(0.92);
+        opacity: 0.5;
+    }
+    50% {
+        transform: scale(1.12);
+        opacity: 0.1;
+    }
+    100% {
+        transform: scale(0.92);
+        opacity: 0.5;
+    }
+}
+
+@keyframes bonsai-shimmer {
+    0% {
+        transform: translateX(-120%);
+    }
+    100% {
+        transform: translateX(220%);
+    }
+}
+
+.animate-bonsai-glow {
+    animation: bonsai-glow 3.2s ease-in-out infinite;
+}
+
+.animate-bonsai-float {
+    animation: bonsai-float 3s ease-in-out infinite;
+    will-change: transform;
+}
+
+.animate-bonsai-ring {
+    animation: bonsai-ring 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-bonsai-shimmer {
+    animation: bonsai-shimmer 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes ambient-drift-slow {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.8;
+    }
+    33% {
+        transform: translate3d(60px, -50px, 0) scale(1.15);
+        opacity: 1;
+    }
+    66% {
+        transform: translate3d(-40px, 30px, 0) scale(0.9);
+        opacity: 0.7;
+    }
+}
+
+@keyframes ambient-drift-reverse {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.75;
+    }
+    33% {
+        transform: translate3d(-55px, 40px, 0) scale(0.88);
+        opacity: 0.65;
+    }
+    66% {
+        transform: translate3d(45px, -55px, 0) scale(1.16);
+        opacity: 1;
+    }
+}
+
+.animate-ambient-slow {
+    animation: ambient-drift-slow 9s ease-in-out infinite;
+    will-change: transform, opacity;
+}
+
+.animate-ambient-reverse {
+    animation: ambient-drift-reverse 11s ease-in-out infinite;
+    will-change: transform, opacity;
+}
+
+@keyframes background-pulse {
+    0%,
+    100% {
+        opacity: 0.18;
+        transform: scale(0.96);
+    }
+    50% {
+        opacity: 0.45;
+        transform: scale(1.05);
+    }
+}
+
+.animate-background-pulse {
+    animation: background-pulse 7s ease-in-out infinite;
+    will-change: transform, opacity;
 }
 
 @media (prefers-reduced-motion: reduce) {
