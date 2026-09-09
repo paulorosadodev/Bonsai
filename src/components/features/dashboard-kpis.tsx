@@ -12,6 +12,7 @@ import { formatCivilDate } from "./params";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { DynamicIcon } from "./transaction-visuals";
+import { scrollBottomIntoViewIfNeeded } from "@/lib/ui/scroll";
 
 function ChartViewport({ className, height, width, clickable = false, children }: { className: string; height?: number; width?: string; clickable?: boolean; children: ReactNode }) {
     const ready = useSyncExternalStore(
@@ -149,17 +150,7 @@ export function DashboardKpisSection({ kpis, specificTags = [], className }: Das
         setIsTagsListOpen((prev) => {
             const next = !prev;
             if (next) {
-                setTimeout(() => {
-                    if (!asideRef.current) return;
-                    const rect = asideRef.current.getBoundingClientRect();
-                    const targetBottom = window.innerHeight - 32;
-                    if (rect.bottom > targetBottom) {
-                        window.scrollBy({
-                            top: rect.bottom - targetBottom,
-                            behavior: "smooth",
-                        });
-                    }
-                }, 100);
+                scrollBottomIntoViewIfNeeded(asideRef.current);
             }
             return next;
         });

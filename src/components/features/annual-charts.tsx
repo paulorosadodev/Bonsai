@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Area, Bar, BarChart, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useReducedMotion } from "motion/react";
@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { useFinancePending } from "@/components/layout/finance-pending";
 import { DynamicIcon } from "./transaction-visuals";
+import { scrollBottomIntoViewIfNeeded } from "@/lib/ui/scroll";
 
 function ChartViewport({ className, height, width, clickable = false, children }: { className: string; height?: number; width?: string; clickable?: boolean; children: ReactNode }) {
     const ready = useSyncExternalStore(
@@ -71,8 +72,19 @@ export function AnnualLineChart({ items, year }: { items: AnnualMonthPoint[]; ye
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { start } = useFinancePending();
+    const cardRef = useRef<HTMLDivElement>(null);
     const [isOpen, setIsOpen] = useState(false);
     const reduce = useReducedMotion();
+
+    const handleToggle = useCallback(() => {
+        setIsOpen((prev) => {
+            const next = !prev;
+            if (next) {
+                scrollBottomIntoViewIfNeeded(cardRef.current);
+            }
+            return next;
+        });
+    }, []);
 
     const handleNavigateMonth = useCallback(
         (targetMonth: string) => {
@@ -116,8 +128,8 @@ export function AnnualLineChart({ items, year }: { items: AnnualMonthPoint[]; ye
     }
 
     return (
-        <Card className="flex flex-col gap-3">
-            <button type="button" aria-expanded={isOpen} onClick={() => setIsOpen((prev) => !prev)} className="flex items-center justify-between gap-3 w-full cursor-pointer select-none text-left rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-violet py-0.5">
+        <Card ref={cardRef} className="flex flex-col gap-3">
+            <button type="button" aria-expanded={isOpen} onClick={handleToggle} className="flex items-center justify-between gap-3 w-full cursor-pointer select-none text-left rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-violet py-0.5">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <TrendingUp className="size-5 text-violet shrink-0" aria-hidden />
                     <h2 className="text-lg font-bold text-text">Evolução Mensal</h2>
@@ -188,12 +200,23 @@ export function AnnualLineChart({ items, year }: { items: AnnualMonthPoint[]; ye
 }
 
 export function AnnualCategoryChart({ items, selectedCategoryId, totalYearCents }: { items: DashboardCategoryTotal[]; selectedCategoryId?: string; totalYearCents: number }) {
+    const cardRef = useRef<HTMLDivElement>(null);
     const [isOpen, setIsOpen] = useState(false);
     const reduce = useReducedMotion();
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [, startTransition] = useTransition();
+
+    const handleToggle = useCallback(() => {
+        setIsOpen((prev) => {
+            const next = !prev;
+            if (next) {
+                scrollBottomIntoViewIfNeeded(cardRef.current);
+            }
+            return next;
+        });
+    }, []);
 
     const rows = items
         .filter((item) => item.amountCents > 0)
@@ -255,9 +278,9 @@ export function AnnualCategoryChart({ items, selectedCategoryId, totalYearCents 
     }
 
     return (
-        <Card className="flex flex-col gap-3">
+        <Card ref={cardRef} className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
-                <button type="button" aria-expanded={isOpen} onClick={() => setIsOpen((prev) => !prev)} className="flex flex-1 items-center justify-between gap-3 text-left cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-lg py-0.5">
+                <button type="button" aria-expanded={isOpen} onClick={handleToggle} className="flex flex-1 items-center justify-between gap-3 text-left cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-lg py-0.5">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <PieChartIcon className="size-5 text-orchid shrink-0" aria-hidden />
                         <h2 className="text-lg font-bold text-text">Categorias no Ano</h2>
@@ -389,12 +412,23 @@ export function AnnualCategoryChart({ items, selectedCategoryId, totalYearCents 
 }
 
 export function AnnualHistoryChart({ items, selectedYear }: { items: AnnualYearPoint[]; selectedYear: number }) {
+    const cardRef = useRef<HTMLDivElement>(null);
     const [isOpen, setIsOpen] = useState(false);
     const reduce = useReducedMotion();
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [, startTransition] = useTransition();
+
+    const handleToggle = useCallback(() => {
+        setIsOpen((prev) => {
+            const next = !prev;
+            if (next) {
+                scrollBottomIntoViewIfNeeded(cardRef.current);
+            }
+            return next;
+        });
+    }, []);
 
     const handleSelectYear = useCallback(
         (targetYear: number) => {
@@ -440,8 +474,8 @@ export function AnnualHistoryChart({ items, selectedYear }: { items: AnnualYearP
     }
 
     return (
-        <Card className="flex flex-col gap-3">
-            <button type="button" aria-expanded={isOpen} onClick={() => setIsOpen((prev) => !prev)} className="flex items-center justify-between gap-3 w-full cursor-pointer select-none text-left rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-violet py-0.5">
+        <Card ref={cardRef} className="flex flex-col gap-3">
+            <button type="button" aria-expanded={isOpen} onClick={handleToggle} className="flex items-center justify-between gap-3 w-full cursor-pointer select-none text-left rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-violet py-0.5">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <BarChart3 className="size-5 text-mint shrink-0" aria-hidden />
                     <h2 className="text-lg font-bold text-text">Histórico Anual</h2>

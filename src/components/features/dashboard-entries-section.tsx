@@ -197,21 +197,6 @@ export function DashboardEntriesSection({ entries, totalCents, filteredTotalCent
 
     const hasActiveFilters = Boolean(filters.search || filters.category || filters.paymentMethod || filters.generalTag || filters.specificTag || (filters.sort && filters.sort !== "date_desc"));
 
-    const savedOpen = useSyncExternalStore(
-        () => () => {},
-        () => {
-            try {
-                const val = sessionStorage.getItem("bonsai_dashboard_entries_open");
-                if (val === "true") return true;
-                if (val === "false") return false;
-                return null;
-            } catch {
-                return null;
-            }
-        },
-        () => null,
-    );
-
     const savedPage = useSyncExternalStore(
         () => () => {},
         () => {
@@ -238,9 +223,6 @@ export function DashboardEntriesSection({ entries, totalCents, filteredTotalCent
         () => "[]",
     );
 
-    const [userToggle, setUserToggle] = useState<boolean | null>(null);
-    const [prevHasActiveFilters, setPrevHasActiveFilters] = useState(hasActiveFilters);
-    const [prevCategory, setPrevCategory] = useState(filters.category);
     const [pageOverride, setPageOverride] = useState<number | null>(null);
     const [expandedIdsOverride, setExpandedIdsOverride] = useState<string[] | null>(null);
 
@@ -273,23 +255,6 @@ export function DashboardEntriesSection({ entries, totalCents, filteredTotalCent
         setPageOverride(1);
     }
 
-    if (filters.category !== prevCategory) {
-        setPrevCategory(filters.category);
-        if (filters.category) {
-            setUserToggle(true);
-        }
-    }
-
-    if (hasActiveFilters !== prevHasActiveFilters) {
-        const wasActive = prevHasActiveFilters;
-        setPrevHasActiveFilters(hasActiveFilters);
-        if (hasActiveFilters) {
-            setUserToggle(true);
-        } else if (userToggle !== false && (userToggle === true || wasActive)) {
-            setUserToggle(true);
-        }
-    }
-
     useEffect(() => {
         if (filters.category && filters.category !== prevScrolledCategoryRef.current) {
             const timer = setTimeout(() => {
@@ -299,16 +264,6 @@ export function DashboardEntriesSection({ entries, totalCents, filteredTotalCent
         }
         prevScrolledCategoryRef.current = filters.category;
     }, [filters.category]);
-
-    const isOpen = userToggle !== null ? userToggle : savedOpen !== null ? savedOpen : hasActiveFilters;
-
-    const handleToggle = () => {
-        const next = !isOpen;
-        setUserToggle(next);
-        try {
-            sessionStorage.setItem("bonsai_dashboard_entries_open", String(next));
-        } catch {}
-    };
 
     const totalPages = Math.ceil(entries.length / PAGE_SIZE);
     const paginatedEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -323,19 +278,7 @@ export function DashboardEntriesSection({ entries, totalCents, filteredTotalCent
 
     return (
         <section ref={sectionRef} id="composicao-gastos" className="flex flex-col gap-3 scroll-mt-20">
-            <Card
-                role="button"
-                tabIndex={0}
-                aria-expanded={isOpen}
-                onClick={handleToggle}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleToggle();
-                    }
-                }}
-                className="flex flex-col gap-2 cursor-pointer select-none transition-colors hover:bg-surface-raised/20 outline-none focus-visible:ring-2 focus-visible:ring-violet"
-            >
+            <Card className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 flex-col gap-0.5">
                         <div className="flex items-center gap-2.5">
@@ -346,55 +289,49 @@ export function DashboardEntriesSection({ entries, totalCents, filteredTotalCent
                             {entries.length === 1 ? "1 lançamento" : `${entries.length} lançamentos`} • {formatBrl(totalCents)}
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-muted">{isOpen ? "Ocultar" : "Ver todos"}</span>
-                        <ChevronDown className={cn("size-5 text-muted transition-transform duration-200", isOpen && "rotate-180 text-violet")} aria-hidden />
-                    </div>
                 </div>
             </Card>
 
-            {isOpen ? (
-                <div className="flex flex-col gap-3">
-                    <TransactionFilters values={filters} categories={categories} generalTags={generalTags} specificTags={specificTags} showPaymentMethod={true} searchPlaceholder={periodKind === "year" ? "Buscar nos gastos do ano..." : "Buscar nos gastos do mês..."} />
+            <div className="flex flex-col gap-3">
+                <TransactionFilters values={filters} categories={categories} generalTags={generalTags} specificTags={specificTags} showPaymentMethod={true} searchPlaceholder={periodKind === "year" ? "Buscar nos gastos do ano..." : "Buscar nos gastos do mês..."} />
 
-                    {hasActiveFilters && entries.length > 0 ? (
-                        <div className="flex items-center justify-between px-1 text-xs text-muted">
-                            <span>
-                                {entries.length} {entries.length === 1 ? "lançamento encontrado" : "lançamentos encontrados"}
-                            </span>
-                            <span className="font-medium text-text">Total filtrado: {formatBrl(filteredTotalCents)}</span>
-                        </div>
-                    ) : null}
+                {hasActiveFilters && entries.length > 0 ? (
+                    <div className="flex items-center justify-between px-1 text-xs text-muted">
+                        <span>
+                            {entries.length} {entries.length === 1 ? "lançamento encontrado" : "lançamentos encontrados"}
+                        </span>
+                        <span className="font-medium text-text">Total filtrado: {formatBrl(filteredTotalCents)}</span>
+                    </div>
+                ) : null}
 
-                    {entries.length === 0 ? (
-                        <EmptyState title={hasActiveFilters ? "Nenhum lançamento neste filtro" : periodKind === "year" ? "Ainda não há lançamentos neste ano" : "Ainda não há lançamentos neste mês"} description={hasActiveFilters ? "Tente ajustar ou limpar os filtros para ver outros gastos." : periodKind === "year" ? "Quando houver despesas ou parcelas neste ano, elas aparecem aqui." : "Quando houver despesas ou parcelas neste mês, elas aparecem aqui."} />
-                    ) : (
-                        <>
-                            <ul className="flex flex-col gap-3">
-                                {paginatedEntries.map((item) => (
-                                    <li key={item.id}>
-                                        <DashboardEntryCard item={item} returnUrl={currentUrl} isExpanded={expandedIds.includes(item.id)} onToggleExpand={() => toggleCardExpand(item.id)} />
-                                    </li>
-                                ))}
-                            </ul>
+                {entries.length === 0 ? (
+                    <EmptyState title={hasActiveFilters ? "Nenhum lançamento neste filtro" : periodKind === "year" ? "Ainda não há lançamentos neste ano" : "Ainda não há lançamentos neste mês"} description={hasActiveFilters ? "Tente ajustar ou limpar os filtros para ver outros gastos." : periodKind === "year" ? "Quando houver despesas ou parcelas neste ano, elas aparecem aqui." : "Quando houver despesas ou parcelas neste mês, elas aparecem aqui."} />
+                ) : (
+                    <>
+                        <ul className="flex flex-col gap-3">
+                            {paginatedEntries.map((item) => (
+                                <li key={item.id}>
+                                    <DashboardEntryCard item={item} returnUrl={currentUrl} isExpanded={expandedIds.includes(item.id)} onToggleExpand={() => toggleCardExpand(item.id)} />
+                                </li>
+                            ))}
+                        </ul>
 
-                            {totalPages > 1 ? (
-                                <div className="flex items-center justify-between gap-2 px-1 pt-1">
-                                    <button type="button" disabled={page <= 1} onClick={() => changePage(Math.max(1, page - 1))} className="inline-flex items-center gap-1 rounded-xl bg-surface px-3.5 py-1.5 text-xs font-semibold text-text transition-colors hover:bg-surface-raised disabled:opacity-35 disabled:pointer-events-none cursor-pointer border border-surface-raised/80">
-                                        Anterior
-                                    </button>
-                                    <span className="text-xs text-muted tabular">
-                                        Página {page} de {totalPages} ({entries.length} lançamentos)
-                                    </span>
-                                    <button type="button" disabled={page >= totalPages} onClick={() => changePage(Math.min(totalPages, page + 1))} className="inline-flex items-center gap-1 rounded-xl bg-surface px-3.5 py-1.5 text-xs font-semibold text-text transition-colors hover:bg-surface-raised disabled:opacity-35 disabled:pointer-events-none cursor-pointer border border-surface-raised/80">
-                                        Próxima
-                                    </button>
-                                </div>
-                            ) : null}
-                        </>
-                    )}
-                </div>
-            ) : null}
+                        {totalPages > 1 ? (
+                            <div className="flex items-center justify-between gap-2 px-1 pt-1">
+                                <button type="button" disabled={page <= 1} onClick={() => changePage(Math.max(1, page - 1))} className="inline-flex items-center gap-1 rounded-xl bg-surface px-3.5 py-1.5 text-xs font-semibold text-text transition-colors hover:bg-surface-raised disabled:opacity-35 disabled:pointer-events-none cursor-pointer border border-surface-raised/80">
+                                    Anterior
+                                </button>
+                                <span className="text-xs text-muted tabular">
+                                    Página {page} de {totalPages} ({entries.length} lançamentos)
+                                </span>
+                                <button type="button" disabled={page >= totalPages} onClick={() => changePage(Math.min(totalPages, page + 1))} className="inline-flex items-center gap-1 rounded-xl bg-surface px-3.5 py-1.5 text-xs font-semibold text-text transition-colors hover:bg-surface-raised disabled:opacity-35 disabled:pointer-events-none cursor-pointer border border-surface-raised/80">
+                                    Próxima
+                                </button>
+                            </div>
+                        ) : null}
+                    </>
+                )}
+            </div>
         </section>
     );
 }

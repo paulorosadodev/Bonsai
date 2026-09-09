@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { useFinancePending } from "@/components/layout/finance-pending";
 import { currentMonth, formatAxisMonth, formatMonthLabel, shiftMonth } from "./params";
 import { DynamicIcon } from "./transaction-visuals";
+import { scrollBottomIntoViewIfNeeded } from "@/lib/ui/scroll";
 
 type TooltipRow = {
     title: string;
@@ -62,12 +63,23 @@ function ChartViewport({ className, height, width, clickable = false, children }
 }
 
 export function CategoryChart({ items, selectedCategoryId }: { items: DashboardCategoryTotal[]; selectedCategoryId?: string }) {
+    const cardRef = useRef<HTMLDivElement>(null);
     const [isOpen, setIsOpen] = useState(false);
     const reduce = useReducedMotion();
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [, startTransition] = useTransition();
+
+    const handleToggle = useCallback(() => {
+        setIsOpen((prev) => {
+            const next = !prev;
+            if (next) {
+                scrollBottomIntoViewIfNeeded(cardRef.current);
+            }
+            return next;
+        });
+    }, []);
 
     const totalMonthCents = items.reduce((sum, item) => sum + item.amountCents, 0);
 
@@ -131,9 +143,9 @@ export function CategoryChart({ items, selectedCategoryId }: { items: DashboardC
     }
 
     return (
-        <Card className="flex flex-col gap-3">
+        <Card ref={cardRef} className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
-                <button type="button" aria-expanded={isOpen} onClick={() => setIsOpen((prev) => !prev)} className="flex flex-1 items-center justify-between gap-3 text-left cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-lg py-0.5">
+                <button type="button" aria-expanded={isOpen} onClick={handleToggle} className="flex flex-1 items-center justify-between gap-3 text-left cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-lg py-0.5">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <PieChartIcon className="size-5 text-violet shrink-0" aria-hidden />
                         <h2 className="text-lg font-bold text-text">Por Categoria</h2>
@@ -294,10 +306,21 @@ export function HistoryChart({ items, selectedMonth, centered = false }: { items
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { start } = useFinancePending();
+    const cardRef = useRef<HTMLDivElement>(null);
     const [isOpen, setIsOpen] = useState(false);
     const reduce = useReducedMotion();
     const scrollerRef = useRef<HTMLDivElement>(null);
     const [range, setRange] = useState<HistoryRange>(DEFAULT_HISTORY_RANGE);
+
+    const handleToggle = useCallback(() => {
+        setIsOpen((prev) => {
+            const next = !prev;
+            if (next) {
+                scrollBottomIntoViewIfNeeded(cardRef.current);
+            }
+            return next;
+        });
+    }, []);
 
     const handleSelectMonth = useCallback(
         (targetMonth: string) => {
@@ -372,10 +395,10 @@ export function HistoryChart({ items, selectedMonth, centered = false }: { items
     }
 
     return (
-        <Card className="flex flex-col gap-3">
+        <Card ref={cardRef} className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <button type="button" aria-expanded={isOpen} onClick={() => setIsOpen((prev) => !prev)} className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-lg py-0.5">
+                    <button type="button" aria-expanded={isOpen} onClick={handleToggle} className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-lg py-0.5">
                         <TrendingUp className="size-5 text-mint shrink-0" aria-hidden />
                         <h2 className="text-lg font-bold text-text whitespace-nowrap">Histórico Mensal</h2>
                     </button>
@@ -402,7 +425,7 @@ export function HistoryChart({ items, selectedMonth, centered = false }: { items
                         </div>
                     ) : null}
                 </div>
-                <button type="button" aria-expanded={isOpen} onClick={() => setIsOpen((prev) => !prev)} className="flex flex-1 items-center justify-end self-stretch py-1 -mr-1 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-lg group" aria-label={isOpen ? "Recolher histórico mensal" : "Expandir histórico mensal"}>
+                <button type="button" aria-expanded={isOpen} onClick={handleToggle} className="flex flex-1 items-center justify-end self-stretch py-1 -mr-1 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-lg group" aria-label={isOpen ? "Recolher histórico mensal" : "Expandir histórico mensal"}>
                     <ChevronDown className={cn("size-5 text-muted group-hover:text-text transition-all duration-200", isOpen && "rotate-180 text-violet group-hover:text-violet")} aria-hidden />
                 </button>
             </div>
