@@ -131,7 +131,7 @@ assert.deepEqual(
 
 // Tests for nextCivilDate and previousCivilDate
 import { nextCivilDate, previousCivilDate } from "../src/lib/domain/recurrence";
-import { transactionSchema } from "../src/lib/domain/schemas";
+import { getEffectiveAmountCents, transactionSchema } from "../src/lib/domain/schemas";
 
 assert.equal(nextCivilDate("2026-12-15"), "2026-12-16");
 assert.equal(nextCivilDate("2026-12-31"), "2027-01-01");
@@ -207,3 +207,118 @@ assert.equal(withReturnUrl("/transactions/123/edit", "//evil.com"), "/transactio
 assert.equal(getReturnUrl("/transactions?month=2026-08"), "/transactions?month=2026-08");
 assert.equal(getReturnUrl("//evil.com"), "/transactions");
 assert.equal(getReturnUrl(null), "/transactions");
+
+// getEffectiveAmountCents tests
+assert.equal(getEffectiveAmountCents(10000, 3000, false), 7000);
+assert.equal(getEffectiveAmountCents(10000, 3000, true), 10000);
+assert.equal(getEffectiveAmountCents(10000, null, false), 10000);
+assert.equal(getEffectiveAmountCents(10000, null, true), 10000);
+assert.equal(getEffectiveAmountCents(10000, undefined, false), 10000);
+assert.equal(getEffectiveAmountCents(10000, undefined, true), 10000);
+
+// Partial reimbursement transactionSchema tests
+const validPartial = transactionSchema.safeParse({
+    name: "Almoço com Colegas",
+    amount: "300,00",
+    reimbursedAmount: "100,00",
+    purchaseDate: "2026-09-11",
+    paymentMethod: "pix",
+    installmentCount: 1,
+    isRecurring: false,
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(validPartial.success, true);
+if (validPartial.success) {
+    assert.equal(validPartial.data.amount, 30000);
+    assert.equal(validPartial.data.reimbursedAmount, 10000);
+}
+
+const validEmptyReimbursed = transactionSchema.safeParse({
+    name: "Almoço Integral",
+    amount: "300,00",
+    reimbursedAmount: "",
+    purchaseDate: "2026-09-11",
+    paymentMethod: "pix",
+    installmentCount: 1,
+    isRecurring: false,
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(validEmptyReimbursed.success, true);
+if (validEmptyReimbursed.success) {
+    assert.equal(validEmptyReimbursed.data.reimbursedAmount, null);
+}
+
+const invalidPartialOnInstallments = transactionSchema.safeParse({
+    name: "Compra Parcelada",
+    amount: "300,00",
+    reimbursedAmount: "100,00",
+    purchaseDate: "2026-09-11",
+    paymentMethod: "credit",
+    installmentCount: 3,
+    isRecurring: false,
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(invalidPartialOnInstallments.success, false);
+
+const invalidPartialOnRecurring = transactionSchema.safeParse({
+    name: "Assinatura",
+    amount: "300,00",
+    reimbursedAmount: "100,00",
+    purchaseDate: "2026-09-11",
+    paymentMethod: "pix",
+    installmentCount: 1,
+    isRecurring: true,
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(invalidPartialOnRecurring.success, false);
+
+const invalidPartialExceedingAmount = transactionSchema.safeParse({
+    name: "Compra",
+    amount: "300,00",
+    reimbursedAmount: "300,00",
+    purchaseDate: "2026-09-11",
+    paymentMethod: "pix",
+    installmentCount: 1,
+    isRecurring: false,
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(invalidPartialExceedingAmount.success, false);
+
+const invalidPartialGreaterAmount = transactionSchema.safeParse({
+    name: "Compra",
+    amount: "300,00",
+    reimbursedAmount: "350,00",
+    purchaseDate: "2026-09-11",
+    paymentMethod: "pix",
+    installmentCount: 1,
+    isRecurring: false,
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(invalidPartialGreaterAmount.success, false);
+
+const invalidPartialZero = transactionSchema.safeParse({
+    name: "Compra",
+    amount: "300,00",
+    reimbursedAmount: "0,00",
+    purchaseDate: "2026-09-11",
+    paymentMethod: "pix",
+    installmentCount: 1,
+    isRecurring: false,
+    category: validUuid,
+    generalTags: [],
+    specificTag: null,
+});
+assert.equal(invalidPartialZero.success, false);
+

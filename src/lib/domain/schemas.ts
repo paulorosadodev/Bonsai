@@ -69,6 +69,29 @@ export const transactionSchema = z
                 return z.NEVER;
             }
         }),
+        reimbursedAmount: z
+            .string()
+            .optional()
+            .nullable()
+            .transform((value, context) => {
+                if (!value || !value.trim()) {
+                    return null;
+                }
+
+                try {
+                    const amountCents = parseBrlToCents(value);
+
+                    if (amountCents <= 0) {
+                        context.addIssue({ code: "custom", message: "O valor reembolsado deve ser maior que zero" });
+                        return z.NEVER;
+                    }
+
+                    return amountCents;
+                } catch {
+                    context.addIssue({ code: "custom", message: "Informe um valor de reembolso válido" });
+                    return z.NEVER;
+                }
+            }),
         purchaseDate: civilDateSchema,
         paymentMethod: z.enum(paymentMethods, { message: "Selecione a forma de pagamento" }),
         installmentCount: z.coerce.number({ message: "Informe o número de parcelas" }).int("O número de parcelas deve ser um número inteiro").min(1, "O número de parcelas deve ser no mínimo 1").max(60, "O número de parcelas deve ser no máximo 60"),
@@ -107,6 +130,32 @@ export const transactionSchema = z
             });
         }
 
+        if (transaction.reimbursedAmount) {
+            if (transaction.installmentCount !== 1) {
+                context.addIssue({
+                    code: "custom",
+                    path: ["reimbursedAmount"],
+                    message: "Reembolso parcial é permitido apenas para compras em 1 parcela",
+                });
+            }
+
+            if (transaction.isRecurring) {
+                context.addIssue({
+                    code: "custom",
+                    path: ["reimbursedAmount"],
+                    message: "Reembolso parcial não é permitido para compras recorrentes",
+                });
+            }
+
+            if (typeof transaction.amount === "number" && transaction.reimbursedAmount >= transaction.amount) {
+                context.addIssue({
+                    code: "custom",
+                    path: ["reimbursedAmount"],
+                    message: "O valor do reembolso deve ser menor que o valor total da compra",
+                });
+            }
+        }
+
         if (transaction.isRecurring && transaction.recurringEndDate && transaction.recurringEndDate.trim() !== "") {
             if (transaction.recurringEndDate < transaction.purchaseDate) {
                 context.addIssue({
@@ -117,6 +166,16 @@ export const transactionSchema = z
             }
         }
     });
+
+export function getEffectiveAmountCents(amountCents: number, reimbursedAmountCents: number | null | undefined, includeReimbursements: boolean): number {
+    if (includeReimbursements) {
+        return amountCents;
+    }
+    if (reimbursedAmountCents && reimbursedAmountCents > 0) {
+        return Math.max(0, amountCents - reimbursedAmountCents);
+    }
+    return amountCents;
+}
 
 export function createTransactionSchema(_today?: string) {
     return transactionSchema;

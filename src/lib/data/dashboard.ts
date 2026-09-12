@@ -41,6 +41,7 @@ type EntryRow = {
     transactions: {
         category_id: string;
         general_tag_ids: string[];
+        reimbursed_amount_cents: number | null;
     } | null;
 };
 
@@ -62,6 +63,7 @@ type DetailedEntryRow = {
         location_id: string | null;
         purchase_date: string;
         payment_method: PaymentMethod;
+        reimbursed_amount_cents: number | null;
     } | null;
 };
 
@@ -88,11 +90,11 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
         getEffectiveMonthlyBudget(supabase, user.id, month),
         supabase
             .from("transaction_entries")
-            .select("amount_cents, competence_date, transactions!inner(category_id, general_tag_ids)")
+            .select("amount_cents, competence_date, transactions!inner(category_id, general_tag_ids, reimbursed_amount_cents)")
             .gte("competence_date", monthStart(shiftCalendarMonth(month, -36)))
             .lte("competence_date", monthEnd(month))
             .order("competence_date", { ascending: true }),
-        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(id, name, description, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method)").eq("competence_date", competence).order("competence_date", { ascending: false }),
+        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(id, name, description, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method, reimbursed_amount_cents)").eq("competence_date", competence).order("competence_date", { ascending: false }),
         loadRecurrenceStateFrom(supabase),
         getUserCategoriesMap(supabase, user.id),
         getUserGeneralTagsMap(supabase, user.id),
@@ -101,6 +103,7 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
     ]);
 
     if (entriesResult.error || detailedEntriesResult.error) {
+        console.error("Dashboard error loading entries:", entriesResult.error ?? detailedEntriesResult.error);
         throw new Error("Não foi possível carregar o resumo");
     }
 
@@ -108,25 +111,44 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
     const projected = projectLoadedRecurrences(recurrence, origin, monthEnd(month), today, settings);
 
     const lines: DashboardLine[] = [
-        ...(entriesResult.data as EntryRow[]).map((row) => ({
-            amountCents: row.amount_cents,
-            competenceDate: row.competence_date,
-            categoryId: row.transactions?.category_id,
-            generalTagIds: row.transactions?.general_tag_ids ?? [],
-            isForecast: false,
-        })),
-        ...projected.map((occurrence) => ({
-            amountCents: occurrence.entry.amountCents,
-            competenceDate: occurrence.entry.competenceDate,
-            categoryId: occurrence.categoryId,
-            generalTagIds: occurrence.generalTagIds ?? [],
-            isForecast: occurrence.isForecast,
-        })),
-    ].filter((line) => {
-        if (includeReimbursements) return true;
-        const tags = line.generalTagIds.map((id) => generalTagsMap.get(id)).filter(Boolean);
-        return !hasReimbursement(tags as Array<{ name?: string }>);
-    });
+        ...(entriesResult.data as EntryRow[]).flatMap((row) => {
+            const tx = row.transactions;
+            const reimbursedCents = tx?.reimbursed_amount_cents;
+            const tags = (tx?.general_tag_ids ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
+            const isReimbursed = hasReimbursement(tags as Array<{ name?: string }>);
+
+            if (!includeReimbursements) {
+                if (isReimbursed && (!reimbursedCents || reimbursedCents <= 0)) {
+                    return [];
+                }
+            }
+
+            const effectiveAmountCents = (!includeReimbursements && reimbursedCents && reimbursedCents > 0)
+                ? Math.max(0, row.amount_cents - reimbursedCents)
+                : row.amount_cents;
+
+            return [{
+                amountCents: effectiveAmountCents,
+                competenceDate: row.competence_date,
+                categoryId: tx?.category_id,
+                generalTagIds: tx?.general_tag_ids ?? [],
+                isForecast: false,
+            }];
+        }),
+        ...projected
+            .filter((occurrence) => {
+                if (includeReimbursements) return true;
+                const tags = (occurrence.generalTagIds ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
+                return !hasReimbursement(tags as Array<{ name?: string }>);
+            })
+            .map((occurrence) => ({
+                amountCents: occurrence.entry.amountCents,
+                competenceDate: occurrence.entry.competenceDate,
+                categoryId: occurrence.categoryId,
+                generalTagIds: occurrence.generalTagIds ?? [],
+                isForecast: occurrence.isForecast,
+            })),
+    ];
 
     const monthRows = lines.filter((line) => line.competenceDate === competence);
     const prevMonthRows = lines.filter((line) => line.competenceDate === prevCompetence);
@@ -167,11 +189,18 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
         .filter((row) => {
             if (!row.transactions) return false;
             if (includeReimbursements) return true;
+            const reimbursedCents = row.transactions.reimbursed_amount_cents;
+            if (reimbursedCents && reimbursedCents > 0) return true;
             const tags = (row.transactions.general_tag_ids ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
             return !hasReimbursement(tags as Array<{ name?: string }>);
         })
         .map((row) => {
             const tx = row.transactions!;
+            const reimbursedCents = tx.reimbursed_amount_cents;
+            const hasPartial = (!includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0));
+            const effectiveAmountCents = hasPartial
+                ? Math.max(0, row.amount_cents - reimbursedCents!)
+                : row.amount_cents;
             const cat = categoriesMap.get(tx.category_id) ?? {
                 id: tx.category_id,
                 name: "Categoria",
@@ -193,7 +222,9 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
                 transactionId: tx.id,
                 name: formatTransactionName(tx.name, loc),
                 description: tx.description,
-                amountCents: row.amount_cents,
+                amountCents: effectiveAmountCents,
+                grossAmountCents: hasPartial ? row.amount_cents : null,
+                reimbursedAmountCents: reimbursedCents,
                 purchaseDate: tx.purchase_date,
                 competenceDate: row.competence_date,
                 paymentMethod: tx.payment_method,
@@ -552,8 +583,8 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
     const [settings, annualBudgetsResult, entriesResult, detailedEntriesResult, recurrence, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([
         getSettings(),
         getAnnualMonthlyBudgets(supabase, user.id, year),
-        supabase.from("transaction_entries").select("amount_cents, competence_date, transactions!inner(category_id, general_tag_ids)").lte("competence_date", yearEndStr).order("competence_date", { ascending: true }),
-        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(id, name, description, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method)").gte("competence_date", yearStartStr).lte("competence_date", yearEndStr).order("competence_date", { ascending: false }),
+        supabase.from("transaction_entries").select("amount_cents, competence_date, transactions!inner(category_id, general_tag_ids, reimbursed_amount_cents)").lte("competence_date", yearEndStr).order("competence_date", { ascending: true }),
+        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(id, name, description, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method, reimbursed_amount_cents)").gte("competence_date", yearStartStr).lte("competence_date", yearEndStr).order("competence_date", { ascending: false }),
         loadRecurrenceStateFrom(supabase),
         getUserCategoriesMap(supabase, user.id),
         getUserGeneralTagsMap(supabase, user.id),
@@ -562,6 +593,7 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
     ]);
 
     if (entriesResult.error || detailedEntriesResult.error) {
+        console.error("Annual dashboard error loading entries:", entriesResult.error ?? detailedEntriesResult.error);
         throw new Error("Não foi possível carregar o resumo anual");
     }
 
@@ -569,25 +601,44 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
     const projected = projectLoadedRecurrences(recurrence, origin, `${year}-12-31`, today, settings);
 
     const lines: DashboardLine[] = [
-        ...(entriesResult.data as EntryRow[]).map((row) => ({
-            amountCents: row.amount_cents,
-            competenceDate: row.competence_date,
-            categoryId: row.transactions?.category_id,
-            generalTagIds: row.transactions?.general_tag_ids ?? [],
-            isForecast: false,
-        })),
-        ...projected.map((occurrence) => ({
-            amountCents: occurrence.entry.amountCents,
-            competenceDate: occurrence.entry.competenceDate,
-            categoryId: occurrence.categoryId,
-            generalTagIds: occurrence.generalTagIds ?? [],
-            isForecast: occurrence.isForecast,
-        })),
-    ].filter((line) => {
-        if (includeReimbursements) return true;
-        const tags = line.generalTagIds.map((id) => generalTagsMap.get(id)).filter(Boolean);
-        return !hasReimbursement(tags as Array<{ name?: string }>);
-    });
+        ...(entriesResult.data as EntryRow[]).flatMap((row) => {
+            const tx = row.transactions;
+            const reimbursedCents = tx?.reimbursed_amount_cents;
+            const tags = (tx?.general_tag_ids ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
+            const isReimbursed = hasReimbursement(tags as Array<{ name?: string }>);
+
+            if (!includeReimbursements) {
+                if (isReimbursed && (!reimbursedCents || reimbursedCents <= 0)) {
+                    return [];
+                }
+            }
+
+            const effectiveAmountCents = (!includeReimbursements && reimbursedCents && reimbursedCents > 0)
+                ? Math.max(0, row.amount_cents - reimbursedCents)
+                : row.amount_cents;
+
+            return [{
+                amountCents: effectiveAmountCents,
+                competenceDate: row.competence_date,
+                categoryId: tx?.category_id,
+                generalTagIds: tx?.general_tag_ids ?? [],
+                isForecast: false,
+            }];
+        }),
+        ...projected
+            .filter((occurrence) => {
+                if (includeReimbursements) return true;
+                const tags = (occurrence.generalTagIds ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
+                return !hasReimbursement(tags as Array<{ name?: string }>);
+            })
+            .map((occurrence) => ({
+                amountCents: occurrence.entry.amountCents,
+                competenceDate: occurrence.entry.competenceDate,
+                categoryId: occurrence.categoryId,
+                generalTagIds: occurrence.generalTagIds ?? [],
+                isForecast: occurrence.isForecast,
+            })),
+    ];
 
     const annualHistoryMap = new Map<number, number>();
     for (const row of lines) {
@@ -680,11 +731,18 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
         .filter((row) => {
             if (!row.transactions) return false;
             if (includeReimbursements) return true;
+            const reimbursedCents = row.transactions.reimbursed_amount_cents;
+            if (reimbursedCents && reimbursedCents > 0) return true;
             const tags = (row.transactions.general_tag_ids ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
             return !hasReimbursement(tags as Array<{ name?: string }>);
         })
         .map((row) => {
             const tx = row.transactions!;
+            const reimbursedCents = tx.reimbursed_amount_cents;
+            const hasPartial = (!includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0));
+            const effectiveAmountCents = hasPartial
+                ? Math.max(0, row.amount_cents - reimbursedCents!)
+                : row.amount_cents;
             const cat = categoriesMap.get(tx.category_id) ?? {
                 id: tx.category_id,
                 name: "Categoria",
@@ -706,7 +764,9 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
                 transactionId: tx.id,
                 name: formatTransactionName(tx.name, loc),
                 description: tx.description,
-                amountCents: row.amount_cents,
+                amountCents: effectiveAmountCents,
+                grossAmountCents: hasPartial ? row.amount_cents : null,
+                reimbursedAmountCents: reimbursedCents,
                 purchaseDate: tx.purchase_date,
                 competenceDate: row.competence_date,
                 paymentMethod: tx.payment_method,
@@ -798,6 +858,7 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
             label: entry.isRecurring ? `${monthFullLabels[Number(entry.competenceDate.slice(5, 7)) - 1]} de ${year}` : entry.installmentCount > 1 ? `Parcela ${entry.installmentNumber}/${entry.installmentCount} • ${monthShortLabels[Number(entry.competenceDate.slice(5, 7)) - 1]}/${year.toString().slice(2)}` : formatCivilDateDisplay(entry.purchaseDate),
             month: entry.competenceDate.slice(0, 7),
             amountCents: entry.amountCents,
+            grossAmountCents: entry.grossAmountCents,
             isForecast: entry.isForecast,
             editHref: entry.editHref,
             paymentMethod: entry.paymentMethod,

@@ -39,6 +39,7 @@ async function persistTransaction(id: string | null, transaction: TransactionInp
         installment_number: entry.installmentNumber,
         installment_count: entry.installmentCount,
         amount_cents: entry.amountCents,
+        reimbursed_amount_cents: transaction.installmentCount === 1 ? (transaction.reimbursedAmount ?? null) : null,
         competence_date: entry.competenceDate,
         invoice_due_date: entry.invoiceDueDate,
     }));
@@ -49,6 +50,7 @@ async function persistTransaction(id: string | null, transaction: TransactionInp
             name: transaction.name,
             description: descriptionValue(transaction.description),
             amount_cents: transaction.amount,
+            reimbursed_amount_cents: transaction.installmentCount === 1 ? (transaction.reimbursedAmount ?? null) : null,
             purchase_date: transaction.purchaseDate,
             payment_method: transaction.paymentMethod,
             installment_count: transaction.installmentCount,

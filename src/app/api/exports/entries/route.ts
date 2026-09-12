@@ -12,7 +12,7 @@ import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const headers = ["entry_id", "transaction_id", "name", "installment_number", "installment_count", "amount_cents", "amount_brl", "competence_date", "invoice_due_date", "purchase_date", "payment_method", "category", "specific_tag", "general_tags", "location"];
+const headers = ["entry_id", "transaction_id", "name", "installment_number", "installment_count", "gross_amount_cents", "gross_amount_brl", "reimbursed_amount_cents", "reimbursed_amount_brl", "net_amount_cents", "net_amount_brl", "competence_date", "invoice_due_date", "purchase_date", "payment_method", "category", "specific_tag", "general_tags", "location"];
 
 type EntryRow = {
     id: string;
@@ -20,6 +20,7 @@ type EntryRow = {
     installment_number: number;
     installment_count: number;
     amount_cents: number;
+    reimbursed_amount_cents: number | null;
     competence_date: string;
     invoice_due_date: string | null;
     transactions: {
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     const filters = parsed.data;
 
-    let query = supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, purchase_date, payment_method, category_id, specific_tag_id, general_tag_ids, location_id)").order("competence_date", { ascending: true }).order("installment_number", { ascending: true });
+    let query = supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, reimbursed_amount_cents, competence_date, invoice_due_date, transactions!inner(name, purchase_date, payment_method, category_id, specific_tag_id, general_tag_ids, location_id)").order("competence_date", { ascending: true }).order("installment_number", { ascending: true });
 
     if (filters.from) {
         query = query.gte("competence_date", filters.from);
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
         return tag?.name.toLowerCase() === "reembolso" || tag?.name.toLowerCase() === "reimbursement";
     };
 
-    function matchesFilters(categoryId: string, paymentMethod: PaymentMethod, tagIds: string[]) {
+    function matchesFilters(categoryId: string, paymentMethod: PaymentMethod, tagIds: string[], reimbursedAmountCents?: number | null, entryAmountCents?: number) {
         if (filters.category && categoryId !== filters.category) {
             return false;
         }
@@ -85,7 +86,16 @@ export async function GET(request: NextRequest) {
             return false;
         }
 
-        return filters.includeReimbursements || !tagIds.some(isReimbursementTag);
+        if (filters.includeReimbursements) {
+            return true;
+        }
+
+        const isReimbursed = tagIds.some(isReimbursementTag);
+        if (!isReimbursed) {
+            return true;
+        }
+
+        return reimbursedAmountCents !== undefined && reimbursedAmountCents !== null && entryAmountCents !== undefined && reimbursedAmountCents > 0 && reimbursedAmountCents < entryAmountCents;
     }
 
     const getCatName = (id: string) => categoriesMap.get(id)?.name ?? id;
@@ -96,13 +106,37 @@ export async function GET(request: NextRequest) {
     const standalones = ((data ?? []) as EntryRow[]).flatMap((row) => {
         const transaction = row.transactions;
 
-        if (!transaction || !matchesFilters(transaction.category_id, transaction.payment_method, transaction.general_tag_ids ?? [])) {
+        if (!transaction || !matchesFilters(transaction.category_id, transaction.payment_method, transaction.general_tag_ids ?? [], row.reimbursed_amount_cents, row.amount_cents)) {
             return [];
         }
 
         const locName = getLocName(transaction.location_id);
+        const hasReimbursement = (transaction.general_tag_ids ?? []).some(isReimbursementTag);
+        const grossCents = row.amount_cents;
+        const reimbursedCents = hasReimbursement ? (row.reimbursed_amount_cents ?? grossCents) : 0;
+        const netCents = Math.max(0, grossCents - reimbursedCents);
 
-        return [[row.id, row.transaction_id, formatTransactionName(transaction.name, locName ? { name: locName } : null), row.installment_number, row.installment_count, row.amount_cents, amountBrl(row.amount_cents), row.competence_date, row.invoice_due_date, transaction.purchase_date, transaction.payment_method, getCatName(transaction.category_id), getSpecName(transaction.specific_tag_id), serializeTags(getGenNames(transaction.general_tag_ids ?? [])), locName] as Array<string | number | null>];
+        return [[
+            row.id,
+            row.transaction_id,
+            formatTransactionName(transaction.name, locName ? { name: locName } : null),
+            row.installment_number,
+            row.installment_count,
+            grossCents,
+            amountBrl(grossCents),
+            reimbursedCents,
+            amountBrl(reimbursedCents),
+            netCents,
+            amountBrl(netCents),
+            row.competence_date,
+            row.invoice_due_date,
+            transaction.purchase_date,
+            transaction.payment_method,
+            getCatName(transaction.category_id),
+            getSpecName(transaction.specific_tag_id),
+            serializeTags(getGenNames(transaction.general_tag_ids ?? [])),
+            locName,
+        ] as Array<string | number | null>];
     });
 
     const recurrences = recurring.flatMap((occurrence) => {
@@ -119,10 +153,35 @@ export async function GET(request: NextRequest) {
         }
 
         const key = occurrenceKey(occurrence.seriesId, occurrence.occurrenceDate);
-        return [[key, occurrence.seriesId, occurrence.name, 1, 1, occurrence.entry.amountCents, amountBrl(occurrence.entry.amountCents), occurrence.entry.competenceDate, occurrence.entry.invoiceDueDate, occurrence.occurrenceDate, occurrence.paymentMethod, getCatName(occurrence.categoryId), getSpecName(occurrence.specificTagId), serializeTags(getGenNames(occurrence.generalTagIds ?? [])), null] as Array<string | number | null>];
+        const hasReimbursement = (occurrence.generalTagIds ?? []).some(isReimbursementTag);
+        const grossCents = occurrence.entry.amountCents;
+        const reimbursedCents = hasReimbursement ? grossCents : 0;
+        const netCents = hasReimbursement ? 0 : grossCents;
+
+        return [[
+            key,
+            occurrence.seriesId,
+            occurrence.name,
+            1,
+            1,
+            grossCents,
+            amountBrl(grossCents),
+            reimbursedCents,
+            amountBrl(reimbursedCents),
+            netCents,
+            amountBrl(netCents),
+            occurrence.entry.competenceDate,
+            occurrence.entry.invoiceDueDate,
+            occurrence.occurrenceDate,
+            occurrence.paymentMethod,
+            getCatName(occurrence.categoryId),
+            getSpecName(occurrence.specificTagId),
+            serializeTags(getGenNames(occurrence.generalTagIds ?? [])),
+            null,
+        ] as Array<string | number | null>];
     });
 
-    const rows = [...standalones, ...recurrences].sort((a, b) => String(a[7]).localeCompare(String(b[7])) || Number(a[3]) - Number(b[3]));
+    const rows = [...standalones, ...recurrences].sort((a, b) => String(a[11]).localeCompare(String(b[11])) || Number(a[3]) - Number(b[3]));
 
     return csvResponse("bonsai-lancamentos.csv", toCsv(headers, rows));
 }

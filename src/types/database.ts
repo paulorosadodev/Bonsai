@@ -114,6 +114,7 @@ export type Database = {
             transaction_entries: {
                 Row: {
                     amount_cents: number;
+                    reimbursed_amount_cents: number | null;
                     competence_date: string;
                     created_at: string;
                     id: string;
@@ -126,6 +127,7 @@ export type Database = {
                 };
                 Insert: {
                     amount_cents: number;
+                    reimbursed_amount_cents?: number | null;
                     competence_date: string;
                     created_at?: string;
                     id?: string;
@@ -138,6 +140,7 @@ export type Database = {
                 };
                 Update: {
                     amount_cents?: number;
+                    reimbursed_amount_cents?: number | null;
                     competence_date?: string;
                     created_at?: string;
                     id?: string;
@@ -161,6 +164,7 @@ export type Database = {
             transactions: {
                 Row: {
                     amount_cents: number;
+                    reimbursed_amount_cents: number | null;
                     category_id: string;
                     created_at: string;
                     description: string | null;
@@ -177,6 +181,7 @@ export type Database = {
                 };
                 Insert: {
                     amount_cents: number;
+                    reimbursed_amount_cents?: number | null;
                     category_id: string;
                     created_at?: string;
                     description?: string | null;
@@ -193,6 +198,7 @@ export type Database = {
                 };
                 Update: {
                     amount_cents?: number;
+                    reimbursed_amount_cents?: number | null;
                     category_id?: string;
                     created_at?: string;
                     description?: string | null;

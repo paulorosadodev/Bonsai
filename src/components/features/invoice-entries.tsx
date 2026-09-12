@@ -42,7 +42,12 @@ export function InvoiceEntries({ entries, sort = "date_desc" }: { entries: Invoi
                                 </div>
                                 {line.isRecurring ? <VisualBadge visual={recurringVisual}>Recorrente</VisualBadge> : null}
                             </div>
-                            <p className="tabular text-text">{formatBrl(line.amountCents)}</p>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                {line.grossAmountCents && line.grossAmountCents > line.amountCents ? (
+                                    <span className="tabular text-xs text-muted/60 line-through">{formatBrl(line.grossAmountCents)}</span>
+                                ) : null}
+                                <p className="tabular text-text">{formatBrl(line.amountCents)}</p>
+                            </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <VisualBadge visual={getItemVisual(line.category)}>{line.category.name}</VisualBadge>
@@ -76,7 +81,12 @@ export function InvoiceEntries({ entries, sort = "date_desc" }: { entries: Invoi
                                             <p className="text-sm text-muted">{line.installmentCount > 1 ? `Parcela ${line.installmentNumber}/${line.installmentCount}` : "À vista"}</p>
                                             {line.isRecurring ? <VisualBadge visual={recurringVisual}>Recorrente</VisualBadge> : null}
                                         </div>
-                                        <p className="tabular text-text">{formatBrl(line.amountCents)}</p>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            {line.grossAmountCents && line.grossAmountCents > line.amountCents ? (
+                                                <span className="tabular text-xs text-muted/60 line-through">{formatBrl(line.grossAmountCents)}</span>
+                                            ) : null}
+                                            <p className="tabular text-text">{formatBrl(line.amountCents)}</p>
+                                        </div>
                                     </div>
                                     {line.specificTag ? (
                                         <div>

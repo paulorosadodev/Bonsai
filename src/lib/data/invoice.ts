@@ -36,6 +36,7 @@ type InvoiceRow = {
         location_id: string | null;
         purchase_date: string;
         payment_method: string;
+        reimbursed_amount_cents: number | null;
     } | null;
 };
 
@@ -44,6 +45,7 @@ type HistoryEntryRow = {
     competence_date: string;
     transactions: {
         general_tag_ids: string[];
+        reimbursed_amount_cents: number | null;
     } | null;
 };
 
@@ -67,13 +69,13 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
         settingsPromise,
         supabase
             .from("transaction_entries")
-            .select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method)")
+            .select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method, reimbursed_amount_cents)")
             .in("competence_date", [prevCompetence, competence])
             .not("invoice_due_date", "is", null)
             .order("invoice_due_date", { ascending: true }),
         supabase
             .from("transaction_entries")
-            .select("amount_cents, competence_date, transactions!inner(general_tag_ids)")
+            .select("amount_cents, competence_date, transactions!inner(general_tag_ids, reimbursed_amount_cents)")
             .gte("competence_date", monthStart(shiftCalendarMonth(month, -36)))
             .lte("competence_date", monthStart(shiftCalendarMonth(month, 3)))
             .not("invoice_due_date", "is", null)
@@ -143,11 +145,18 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
             .filter((row) => {
                 if (!row.transactions) return false;
                 if (parsed.includeReimbursements) return true;
+                const reimbursedCents = row.transactions.reimbursed_amount_cents;
+                if (reimbursedCents && reimbursedCents > 0) return true;
                 const tags = (row.transactions.general_tag_ids ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
                 return !hasReimbursement(tags as Array<{ name?: string }>);
             })
             .map((row) => {
                 const tx = row.transactions!;
+                const reimbursedCents = tx.reimbursed_amount_cents;
+                const hasPartial = (!parsed.includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0));
+                const effectiveAmountCents = hasPartial
+                    ? Math.max(0, row.amount_cents - reimbursedCents!)
+                    : row.amount_cents;
                 const cat = categoriesMap.get(tx.category_id) ?? {
                     id: tx.category_id,
                     name: "Categoria",
@@ -178,7 +187,9 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
                     location: loc,
                     installmentNumber: row.installment_number,
                     installmentCount: row.installment_count,
-                    amountCents: row.amount_cents,
+                    amountCents: effectiveAmountCents,
+                    grossAmountCents: hasPartial ? row.amount_cents : null,
+                    reimbursedAmountCents: reimbursedCents,
                     competenceDate: row.competence_date,
                     invoiceDueDate: row.invoice_due_date!,
                     purchaseDate: tx.purchase_date,
@@ -243,23 +254,42 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
     const filteredTotalCents = filteredEntries.reduce((sum, entry) => sum + entry.amountCents, 0);
 
     const historyLines = [
-        ...((historyEntriesResult.data as HistoryEntryRow[] | null) ?? []).map((row) => ({
-            amountCents: row.amount_cents,
-            competenceDate: row.competence_date,
-            generalTagIds: row.transactions?.general_tag_ids ?? [],
-            isForecast: false,
-        })),
-        ...allProjected.map((occurrence) => ({
-            amountCents: occurrence.entry.amountCents,
-            competenceDate: occurrence.entry.competenceDate,
-            generalTagIds: occurrence.generalTagIds ?? [],
-            isForecast: occurrence.isForecast,
-        })),
-    ].filter((line) => {
-        if (parsed.includeReimbursements) return true;
-        const tags = line.generalTagIds.map((id) => generalTagsMap.get(id)).filter(Boolean);
-        return !hasReimbursement(tags as Array<{ name?: string }>);
-    });
+        ...((historyEntriesResult.data as HistoryEntryRow[] | null) ?? []).flatMap((row) => {
+            const tx = row.transactions;
+            const reimbursedCents = tx?.reimbursed_amount_cents;
+            const tags = (tx?.general_tag_ids ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
+            const isReimbursed = hasReimbursement(tags as Array<{ name?: string }>);
+
+            if (!parsed.includeReimbursements) {
+                if (isReimbursed && (!reimbursedCents || reimbursedCents <= 0)) {
+                    return [];
+                }
+            }
+
+            const effectiveAmountCents = (!parsed.includeReimbursements && reimbursedCents && reimbursedCents > 0)
+                ? Math.max(0, row.amount_cents - reimbursedCents)
+                : row.amount_cents;
+
+            return [{
+                amountCents: effectiveAmountCents,
+                competenceDate: row.competence_date,
+                generalTagIds: tx?.general_tag_ids ?? [],
+                isForecast: false,
+            }];
+        }),
+        ...allProjected
+            .filter((occurrence) => {
+                if (parsed.includeReimbursements) return true;
+                const tags = (occurrence.generalTagIds ?? []).map((id) => generalTagsMap.get(id)).filter(Boolean);
+                return !hasReimbursement(tags as Array<{ name?: string }>);
+            })
+            .map((occurrence) => ({
+                amountCents: occurrence.entry.amountCents,
+                competenceDate: occurrence.entry.competenceDate,
+                generalTagIds: occurrence.generalTagIds ?? [],
+                isForecast: occurrence.isForecast,
+            })),
+    ];
 
     const maxForecastCompetence = monthStart(shiftCalendarMonth(month, 3));
     const historyMap = new Map<string, number>();

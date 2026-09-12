@@ -63,7 +63,10 @@ function DashboardEntryCard({ item, returnUrl, isExpanded, onToggleExpand }: { i
                             ) : null}
                         </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        {item.grossAmountCents && item.grossAmountCents > item.amountCents ? (
+                            <span className="tabular text-xs text-muted/60 line-through">{formatBrl(item.grossAmountCents)}</span>
+                        ) : null}
                         <p className="tabular font-medium text-text">{formatBrl(item.amountCents)}</p>
                         <ChevronRight className="size-4 text-muted" aria-hidden />
                     </div>
@@ -116,6 +119,9 @@ function DashboardEntryCard({ item, returnUrl, isExpanded, onToggleExpand }: { i
                         </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
+                        {item.grossAmountCents && item.grossAmountCents > item.amountCents ? (
+                            <span className="tabular text-xs text-muted/60 line-through">{formatBrl(item.grossAmountCents)}</span>
+                        ) : null}
                         <p className="tabular font-medium text-text">{formatBrl(item.amountCents)}</p>
                         <ChevronDown className={cn("size-4 text-muted transition-transform duration-200", isExpanded && "rotate-180 text-violet")} aria-hidden />
                     </div>
@@ -161,6 +167,9 @@ function DashboardEntryCard({ item, returnUrl, isExpanded, onToggleExpand }: { i
                                         {sub.isForecast ? <span className="rounded bg-orchid/10 px-1.5 py-0.5 text-[10px] font-medium text-orchid shrink-0">Previsto</span> : null}
                                     </span>
                                     <div className="flex items-center gap-1.5 shrink-0">
+                                        {sub.grossAmountCents && sub.grossAmountCents > sub.amountCents ? (
+                                            <span className="tabular text-[11px] text-muted/60 line-through">{formatBrl(sub.grossAmountCents)}</span>
+                                        ) : null}
                                         <span className="tabular font-semibold text-text">{formatBrl(sub.amountCents)}</span>
                                         <ChevronRight className="size-3 text-muted" />
                                     </div>

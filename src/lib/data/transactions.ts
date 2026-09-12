@@ -16,6 +16,7 @@ type TransactionRow = {
     name: string;
     description: string | null;
     amount_cents: number;
+    reimbursed_amount_cents: number | null;
     purchase_date: string;
     payment_method: PaymentMethod;
     installment_count: number;
@@ -33,6 +34,7 @@ type EntryRow = {
     installment_number: number;
     installment_count: number;
     amount_cents: number;
+    reimbursed_amount_cents: number | null;
     competence_date: string;
     invoice_due_date: string | null;
 };
@@ -60,6 +62,7 @@ function mapTransaction(row: TransactionRow, categoriesMap: Map<string, { id: st
         name: row.name,
         description: row.description,
         amountCents: row.amount_cents,
+        reimbursedAmountCents: row.reimbursed_amount_cents,
         purchaseDate: row.purchase_date,
         paymentMethod: row.payment_method,
         installmentCount: row.installment_count,
@@ -83,6 +86,7 @@ function mapEntry(row: EntryRow): TransactionEntryRecord {
         installmentNumber: row.installment_number,
         installmentCount: row.installment_count,
         amountCents: row.amount_cents,
+        reimbursedAmountCents: row.reimbursed_amount_cents,
         competenceDate: row.competence_date,
         invoiceDueDate: row.invoice_due_date,
     };
@@ -93,7 +97,7 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
     const { supabase, user } = await requireUser();
     const today = toSaoPauloCivilDate(new Date());
 
-    let query = supabase.from("transactions").select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, location_id, created_at, updated_at").order("purchase_date", { ascending: false }).order("created_at", { ascending: false });
+    let query = supabase.from("transactions").select("id, name, description, amount_cents, reimbursed_amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, location_id, created_at, updated_at").order("purchase_date", { ascending: false }).order("created_at", { ascending: false });
 
     if (parsed.month) {
         query = query.gte("purchase_date", monthStart(parsed.month)).lt("purchase_date", nextMonthStart(parsed.month));
@@ -124,29 +128,42 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
 
     const standalones: TransactionListItem[] = (result.data as TransactionRow[])
         .map((row) => mapTransaction(row, categoriesMap, generalTagsMap, specificTagsMap, locationsMap))
-        .filter((transaction) => parsed.includeReimbursements || !hasReimbursement(transaction.generalTags))
-        .map((transaction) => ({
-            key: transaction.id,
-            name: formatTransactionName(transaction.name, transaction.location),
-            description: transaction.description,
-            amountCents: transaction.amountCents,
-            purchaseDate: transaction.purchaseDate,
-            paymentMethod: transaction.paymentMethod,
-            installmentCount: transaction.installmentCount,
-            categoryId: transaction.categoryId,
-            category: transaction.category,
-            generalTagIds: transaction.generalTagIds,
-            generalTags: transaction.generalTags,
-            specificTagId: transaction.specificTagId,
-            specificTag: transaction.specificTag,
-            locationId: transaction.locationId,
-            location: transaction.location,
-            isRecurring: false,
-            isForecast: false,
-            editHref: `/transactions/${transaction.id}/edit`,
-            deleteKind: "transaction" as const,
-            deleteId: transaction.id,
-        }));
+        .filter((transaction) => {
+            if (parsed.includeReimbursements) return true;
+            if (transaction.reimbursedAmountCents && transaction.reimbursedAmountCents > 0) return true;
+            return !hasReimbursement(transaction.generalTags);
+        })
+        .map((transaction) => {
+            const hasPartial = !parsed.includeReimbursements && Boolean(transaction.reimbursedAmountCents && transaction.reimbursedAmountCents > 0);
+            const effectiveAmountCents = hasPartial
+                ? Math.max(0, transaction.amountCents - transaction.reimbursedAmountCents!)
+                : transaction.amountCents;
+
+            return {
+                key: transaction.id,
+                name: formatTransactionName(transaction.name, transaction.location),
+                description: transaction.description,
+                amountCents: effectiveAmountCents,
+                grossAmountCents: hasPartial ? transaction.amountCents : null,
+                reimbursedAmountCents: transaction.reimbursedAmountCents,
+                purchaseDate: transaction.purchaseDate,
+                paymentMethod: transaction.paymentMethod,
+                installmentCount: transaction.installmentCount,
+                categoryId: transaction.categoryId,
+                category: transaction.category,
+                generalTagIds: transaction.generalTagIds,
+                generalTags: transaction.generalTags,
+                specificTagId: transaction.specificTagId,
+                specificTag: transaction.specificTag,
+                locationId: transaction.locationId,
+                location: transaction.location,
+                isRecurring: false,
+                isForecast: false,
+                editHref: `/transactions/${transaction.id}/edit`,
+                deleteKind: "transaction" as const,
+                deleteId: transaction.id,
+            };
+        });
 
     const recurrences = projected
         .filter((occurrence) => {
@@ -214,8 +231,8 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
 export async function getTransaction(id: string): Promise<TransactionDetail | null> {
     const { supabase, user } = await requireUser();
     const [{ data: transaction, error: transactionError }, { data: entries, error: entriesError }, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([
-        supabase.from("transactions").select("id, name, description, amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, location_id, created_at, updated_at").eq("id", id).maybeSingle(),
-        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date").eq("transaction_id", id).order("installment_number", { ascending: true }),
+        supabase.from("transactions").select("id, name, description, amount_cents, reimbursed_amount_cents, purchase_date, payment_method, installment_count, category_id, general_tag_ids, specific_tag_id, location_id, created_at, updated_at").eq("id", id).maybeSingle(),
+        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, reimbursed_amount_cents, competence_date, invoice_due_date").eq("transaction_id", id).order("installment_number", { ascending: true }),
         getUserCategoriesMap(supabase, user.id),
         getUserGeneralTagsMap(supabase, user.id),
         getUserSpecificTagsMap(supabase, user.id),

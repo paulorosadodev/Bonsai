@@ -38,7 +38,10 @@ export function TransactionList({ items }: { items: TransactionListItem[] }) {
                                 <p className="font-medium text-text">{item.name}</p>
                                 <p className="text-sm text-muted tabular">{formatCivilDate(item.purchaseDate)}</p>
                             </div>
-                            <div className="flex shrink-0 items-center gap-1">
+                            <div className="flex shrink-0 items-center gap-1.5">
+                                {item.grossAmountCents && item.grossAmountCents > item.amountCents ? (
+                                    <span className="tabular text-xs text-muted/60 line-through">{formatBrl(item.grossAmountCents)}</span>
+                                ) : null}
                                 <p className="tabular text-text">{formatBrl(item.amountCents)}</p>
                                 <ChevronRight className="size-4 text-muted" aria-hidden />
                             </div>

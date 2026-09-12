@@ -33,6 +33,8 @@ import { getItemVisual, paymentVisuals } from "./transaction-visuals";
 import { NameAutocomplete } from "./name-autocomplete";
 import type { TransactionSuggestion } from "@/actions/suggestions";
 
+const DEFAULT_PARTIAL_REIMBURSEMENT_BRL = "R$ 49,00";
+
 function centsToAmountInput(cents: number) {
     return formatBrl(cents);
 }
@@ -45,6 +47,7 @@ function toFormValues(transaction: TransactionRecord | RecurringOccurrenceDetail
             name: "",
             description: "",
             amount: "",
+            reimbursedAmount: "",
             purchaseDate: today,
             paymentMethod: "credit",
             installmentCount: 1,
@@ -57,10 +60,13 @@ function toFormValues(transaction: TransactionRecord | RecurringOccurrenceDetail
         };
     }
 
+    const reimbursedAmount = transaction && "reimbursedAmountCents" in transaction && transaction.reimbursedAmountCents ? centsToAmountInput(transaction.reimbursedAmountCents) : "";
+
     return {
         name: transaction.name,
         description: transaction.description ?? "",
         amount: centsToAmountInput(transaction.amountCents),
+        reimbursedAmount,
         purchaseDate: "purchaseDate" in transaction ? transaction.purchaseDate : transaction.occurrenceDate,
         paymentMethod: transaction.paymentMethod,
         installmentCount: "installmentCount" in transaction ? transaction.installmentCount : 1,
@@ -106,6 +112,7 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
     });
     const name = useWatch({ control, name: "name" }) ?? "";
     const amount = useWatch({ control, name: "amount" }) ?? "";
+    const reimbursedAmount = useWatch({ control, name: "reimbursedAmount" }) ?? "";
     const paymentMethod = useWatch({ control, name: "paymentMethod" });
     const installmentCount = Number(useWatch({ control, name: "installmentCount" }) ?? 1);
     const isRecurring = Boolean(useWatch({ control, name: "isRecurring" }));
@@ -114,6 +121,12 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
     const selectedTags = useWatch({ control, name: "generalTags" }) ?? [];
     const specificTag = useWatch({ control, name: "specificTag" });
     const locationId = useWatch({ control, name: "locationId" });
+
+    const reimbursementTag = generalTags.find((t) => t.name.toLowerCase() === "reembolso" || t.name.toLowerCase() === "reimbursement" || (t as { slug?: string }).slug === "reimbursement");
+    const isReimbursementSelected = Boolean(reimbursementTag && selectedTags.includes(reimbursementTag.id));
+    const isPartialEligible = installmentCount === 1 && !isRecurring;
+    const [isPartialExplicit, setIsPartialExplicit] = useState<boolean | null>(null);
+    const isPartialMode = isPartialEligible && (isPartialExplicit !== null ? isPartialExplicit : Boolean(defaults.reimbursedAmount || reimbursedAmount));
 
     const [locationList, setLocationList] = useState<LocationOption[]>(locations);
     const uberTag = specificTags.find((t) => t.name.toLowerCase() === "uber" || (t as { slug?: string }).slug === "uber");
@@ -356,9 +369,13 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                         error={errors.installmentCount?.message}
                         {...register("installmentCount", {
                             onChange: (event) => {
-                                if (Number(event.target.value) > 1 && getValues("isRecurring")) {
-                                    setValue("isRecurring", false, { shouldValidate: true, shouldDirty: true });
-                                    setValue("recurringEndDate", "", { shouldValidate: true, shouldDirty: true });
+                                if (Number(event.target.value) > 1) {
+                                    if (getValues("isRecurring")) {
+                                        setValue("isRecurring", false, { shouldValidate: true, shouldDirty: true });
+                                        setValue("recurringEndDate", "", { shouldValidate: true, shouldDirty: true });
+                                    }
+                                    setValue("reimbursedAmount", "", { shouldValidate: true });
+                                    setIsPartialExplicit(null);
                                 }
                             },
                         })}
@@ -382,6 +399,9 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                                     field.onChange(checked);
                                     if (!checked) {
                                         setValue("recurringEndDate", "", { shouldValidate: true, shouldDirty: true });
+                                    } else {
+                                        setValue("reimbursedAmount", "", { shouldValidate: true });
+                                        setIsPartialExplicit(null);
                                     }
                                 }}
                                 className="rounded-2xl bg-surface px-3"
@@ -489,6 +509,10 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                                             setTagsManuallyModified(true);
                                             const next = selected ? selectedTags.filter((item) => item !== tag.id) : [...selectedTags, tag.id];
                                             setValue("generalTags", next, { shouldValidate: true, shouldDirty: true });
+                                            if (selected && tag.id === reimbursementTag?.id) {
+                                                setIsPartialExplicit(null);
+                                                setValue("reimbursedAmount", "", { shouldValidate: true, shouldDirty: true });
+                                            }
                                         }}
                                     >
                                         {tag.name}
@@ -496,6 +520,67 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                                 );
                             })}
                         </div>
+                        {isReimbursementSelected && isPartialEligible ? (
+                            <div className="flex flex-col gap-3 rounded-2xl border border-surface-raised bg-surface-raised/40 p-3.5">
+                                <span className="text-xs font-semibold text-text">Tipo de Reembolso</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsPartialExplicit(false);
+                                            setValue("reimbursedAmount", "", { shouldValidate: true, shouldDirty: true });
+                                        }}
+                                        className={cn(
+                                            "flex-1 rounded-xl py-2 text-xs font-medium transition-colors cursor-pointer",
+                                            !isPartialMode
+                                                ? "bg-violet text-ink font-semibold"
+                                                : "bg-surface text-muted hover:text-text"
+                                        )}
+                                    >
+                                        Integral (100%)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsPartialExplicit(true);
+                                            if (!getValues("reimbursedAmount")) {
+                                                setValue("reimbursedAmount", DEFAULT_PARTIAL_REIMBURSEMENT_BRL, { shouldValidate: true, shouldDirty: true });
+                                            }
+                                        }}
+                                        className={cn(
+                                            "flex-1 rounded-xl py-2 text-xs font-medium transition-colors cursor-pointer",
+                                            isPartialMode
+                                                ? "bg-violet text-ink font-semibold"
+                                                : "bg-surface text-muted hover:text-text"
+                                        )}
+                                    >
+                                        Parcial
+                                    </button>
+                                </div>
+                                {isPartialMode ? (
+                                    <div className="flex flex-col gap-1.5 pt-1">
+                                        <CurrencyInput
+                                            id="reimbursedAmount"
+                                            label="Valor a ser reembolsado"
+                                            value={reimbursedAmount}
+                                            onChange={(val) => setValue("reimbursedAmount", val, { shouldValidate: true, shouldDirty: true })}
+                                            error={errors.reimbursedAmount?.message}
+                                            placeholder={DEFAULT_PARTIAL_REIMBURSEMENT_BRL}
+                                            autoFocus
+                                        />
+                                        <p className="text-xs text-muted">
+                                            Informe quanto será devolvido. Esse valor será abatido da despesa quando o toggle de reembolsos estiver desligado.
+                                        </p>
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : isReimbursementSelected && !isPartialEligible ? (
+                            <p className="text-xs text-muted">
+                                {isRecurring
+                                    ? "Despesas recorrentes aceitam apenas reembolso integral."
+                                    : "Compras parceladas aceitam apenas reembolso integral."}
+                            </p>
+                        ) : null}
                         {errors.generalTags?.message ? <p className={messageTone.danger}>{errors.generalTags.message}</p> : null}
                     </fieldset>
                 ) : null}

@@ -132,6 +132,7 @@ export type DashboardSubEntry = {
     label: string;
     month: string;
     amountCents: number;
+    grossAmountCents?: number | null;
     isForecast?: boolean;
     editHref: string;
     paymentMethod?: PaymentMethod;
@@ -145,6 +146,7 @@ export type DashboardEntryItem = {
     name: string;
     description: string | null;
     amountCents: number;
+    grossAmountCents?: number | null;
     purchaseDate: string;
     competenceDate: string;
     paymentMethod: PaymentMethod;
@@ -158,6 +160,7 @@ export type DashboardEntryItem = {
     generalTags: TagInfo[];
     locationId?: string | null;
     location?: LocationInfo | null;
+    reimbursedAmountCents?: number | null;
     isRecurring: boolean;
     isForecast: boolean;
     editHref: string;
@@ -229,6 +232,8 @@ export type InvoiceListItem = {
     installmentNumber: number;
     installmentCount: number;
     amountCents: number;
+    grossAmountCents?: number | null;
+    reimbursedAmountCents?: number | null;
     competenceDate: string;
     invoiceDueDate: string;
     purchaseDate: string;
@@ -252,6 +257,7 @@ export type TransactionRecord = {
     name: string;
     description: string | null;
     amountCents: number;
+    reimbursedAmountCents?: number | null;
     purchaseDate: string;
     paymentMethod: PaymentMethod;
     installmentCount: number;
@@ -272,6 +278,8 @@ export type TransactionListItem = {
     name: string;
     description: string | null;
     amountCents: number;
+    grossAmountCents?: number | null;
+    reimbursedAmountCents?: number | null;
     purchaseDate: string;
     paymentMethod: PaymentMethod;
     installmentCount: number;
@@ -321,6 +329,7 @@ export type TransactionEntryRecord = {
     installmentNumber: number;
     installmentCount: number;
     amountCents: number;
+    reimbursedAmountCents?: number | null;
     competenceDate: string;
     invoiceDueDate: string | null;
 };
