@@ -57,7 +57,7 @@ export default function NotFound() {
                         <ArrowLeft className="size-4" aria-hidden="true" />
                         Voltar ao Resumo
                     </Link>
-                    <Link href="/transactions" className={buttonClassName("secondary", "md", "w-full sm:w-auto")}>
+                    <Link href="/transacoes" className={buttonClassName("secondary", "md", "w-full sm:w-auto")}>
                         Ver Transações
                     </Link>
                 </div>

@@ -191,22 +191,22 @@ const invalidEndDateBeforeStart = transactionSchema.safeParse({
 assert.equal(invalidEndDateBeforeStart.success, false);
 
 // return-url tests
-assert.equal(sanitizeReturnUrl("/transactions?month=2026-08"), "/transactions?month=2026-08");
+assert.equal(sanitizeReturnUrl("/transacoes?month=2026-08"), "/transacoes?month=2026-08");
 assert.equal(sanitizeReturnUrl("/?view=annual&year=2025"), "/?view=annual&year=2025");
-assert.equal(sanitizeReturnUrl("//evil.com"), "/transactions");
-assert.equal(sanitizeReturnUrl("https://evil.com"), "/transactions");
-assert.equal(sanitizeReturnUrl("javascript:alert(1)"), "/transactions");
-assert.equal(sanitizeReturnUrl(null), "/transactions");
+assert.equal(sanitizeReturnUrl("//evil.com"), "/transacoes");
+assert.equal(sanitizeReturnUrl("https://evil.com"), "/transacoes");
+assert.equal(sanitizeReturnUrl("javascript:alert(1)"), "/transacoes");
+assert.equal(sanitizeReturnUrl(null), "/transacoes");
 assert.equal(sanitizeReturnUrl(undefined, "/custom-fallback"), "/custom-fallback");
 
-assert.equal(withReturnUrl("/transactions/123/edit", "/transactions?month=2026-08"), "/transactions/123/edit?returnUrl=%2Ftransactions%3Fmonth%3D2026-08");
-assert.equal(withReturnUrl("/transactions/123/edit?foo=bar", "/transactions?month=2026-08"), "/transactions/123/edit?foo=bar&returnUrl=%2Ftransactions%3Fmonth%3D2026-08");
-assert.equal(withReturnUrl("/transactions/123/edit", null), "/transactions/123/edit");
-assert.equal(withReturnUrl("/transactions/123/edit", "//evil.com"), "/transactions/123/edit");
+assert.equal(withReturnUrl("/transacoes/123/editar", "/transacoes?month=2026-08"), "/transacoes/123/editar?returnUrl=%2Ftransacoes%3Fmonth%3D2026-08");
+assert.equal(withReturnUrl("/transacoes/123/editar?foo=bar", "/transacoes?month=2026-08"), "/transacoes/123/editar?foo=bar&returnUrl=%2Ftransacoes%3Fmonth%3D2026-08");
+assert.equal(withReturnUrl("/transacoes/123/editar", null), "/transacoes/123/editar");
+assert.equal(withReturnUrl("/transacoes/123/editar", "//evil.com"), "/transacoes/123/editar");
 
-assert.equal(getReturnUrl("/transactions?month=2026-08"), "/transactions?month=2026-08");
-assert.equal(getReturnUrl("//evil.com"), "/transactions");
-assert.equal(getReturnUrl(null), "/transactions");
+assert.equal(getReturnUrl("/transacoes?month=2026-08"), "/transacoes?month=2026-08");
+assert.equal(getReturnUrl("//evil.com"), "/transacoes");
+assert.equal(getReturnUrl(null), "/transacoes");
 
 // getEffectiveAmountCents tests
 assert.equal(getEffectiveAmountCents(10000, 3000, false), 7000);
@@ -321,4 +321,3 @@ const invalidPartialZero = transactionSchema.safeParse({
     specificTag: null,
 });
 assert.equal(invalidPartialZero.success, false);
-

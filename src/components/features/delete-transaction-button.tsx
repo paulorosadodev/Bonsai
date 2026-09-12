@@ -13,7 +13,7 @@ import { getReturnUrl } from "@/lib/navigation/return-url";
 export function DeleteTransactionButton({ id, name, kind = "transaction", occurrenceDate, returnUrl }: { id: string; name: string; kind?: "transaction" | "recurrence"; occurrenceDate?: string; returnUrl?: string }) {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const resolvedReturnUrl = getReturnUrl(returnUrl ?? searchParams.get("returnUrl"), "/transactions");
+    const resolvedReturnUrl = getReturnUrl(returnUrl ?? searchParams.get("returnUrl"), "/transacoes");
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState(false);
     const recurring = kind === "recurrence";

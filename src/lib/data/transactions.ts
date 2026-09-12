@@ -135,9 +135,7 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
         })
         .map((transaction) => {
             const hasPartial = !parsed.includeReimbursements && Boolean(transaction.reimbursedAmountCents && transaction.reimbursedAmountCents > 0);
-            const effectiveAmountCents = hasPartial
-                ? Math.max(0, transaction.amountCents - transaction.reimbursedAmountCents!)
-                : transaction.amountCents;
+            const effectiveAmountCents = hasPartial ? Math.max(0, transaction.amountCents - transaction.reimbursedAmountCents!) : transaction.amountCents;
 
             return {
                 key: transaction.id,
@@ -159,7 +157,7 @@ export async function getTransactions(filters: z.input<typeof transactionFilters
                 location: transaction.location,
                 isRecurring: false,
                 isForecast: false,
-                editHref: `/transactions/${transaction.id}/edit`,
+                editHref: `/transacoes/${transaction.id}/editar`,
                 deleteKind: "transaction" as const,
                 deleteId: transaction.id,
             };

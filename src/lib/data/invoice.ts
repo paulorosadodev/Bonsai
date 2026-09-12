@@ -67,12 +67,7 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
 
     const [settings, entriesResult, historyEntriesResult, recurrence, categoriesMap, generalTagsMap, specificTagsMap, locationsMap] = await Promise.all([
         settingsPromise,
-        supabase
-            .from("transaction_entries")
-            .select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method, reimbursed_amount_cents)")
-            .in("competence_date", [prevCompetence, competence])
-            .not("invoice_due_date", "is", null)
-            .order("invoice_due_date", { ascending: true }),
+        supabase.from("transaction_entries").select("id, transaction_id, installment_number, installment_count, amount_cents, competence_date, invoice_due_date, transactions!inner(name, category_id, specific_tag_id, general_tag_ids, location_id, purchase_date, payment_method, reimbursed_amount_cents)").in("competence_date", [prevCompetence, competence]).not("invoice_due_date", "is", null).order("invoice_due_date", { ascending: true }),
         supabase
             .from("transaction_entries")
             .select("amount_cents, competence_date, transactions!inner(general_tag_ids, reimbursed_amount_cents)")
@@ -153,10 +148,8 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
             .map((row) => {
                 const tx = row.transactions!;
                 const reimbursedCents = tx.reimbursed_amount_cents;
-                const hasPartial = (!parsed.includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0));
-                const effectiveAmountCents = hasPartial
-                    ? Math.max(0, row.amount_cents - reimbursedCents!)
-                    : row.amount_cents;
+                const hasPartial = !parsed.includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0);
+                const effectiveAmountCents = hasPartial ? Math.max(0, row.amount_cents - reimbursedCents!) : row.amount_cents;
                 const cat = categoriesMap.get(tx.category_id) ?? {
                     id: tx.category_id,
                     name: "Categoria",
@@ -266,16 +259,16 @@ export async function getInvoice(filters: z.input<typeof transactionFiltersSchem
                 }
             }
 
-            const effectiveAmountCents = (!parsed.includeReimbursements && reimbursedCents && reimbursedCents > 0)
-                ? Math.max(0, row.amount_cents - reimbursedCents)
-                : row.amount_cents;
+            const effectiveAmountCents = !parsed.includeReimbursements && reimbursedCents && reimbursedCents > 0 ? Math.max(0, row.amount_cents - reimbursedCents) : row.amount_cents;
 
-            return [{
-                amountCents: effectiveAmountCents,
-                competenceDate: row.competence_date,
-                generalTagIds: tx?.general_tag_ids ?? [],
-                isForecast: false,
-            }];
+            return [
+                {
+                    amountCents: effectiveAmountCents,
+                    competenceDate: row.competence_date,
+                    generalTagIds: tx?.general_tag_ids ?? [],
+                    isForecast: false,
+                },
+            ];
         }),
         ...allProjected
             .filter((occurrence) => {

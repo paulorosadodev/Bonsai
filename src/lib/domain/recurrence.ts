@@ -55,7 +55,7 @@ export function occurrenceKey(seriesId: string, occurrenceDate: CivilDate) {
 }
 
 export function occurrenceEditHref(seriesId: string, occurrenceDate: CivilDate) {
-    return `/transactions/recurring/${seriesId}/${occurrenceDate}/edit`;
+    return `/transacoes/recorrentes/${seriesId}/${occurrenceDate}/editar`;
 }
 
 export function versionAt(versions: RecurringVersionRecord[], month: string): RecurringVersionRecord | null {

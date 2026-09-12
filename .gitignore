@@ -33,4 +33,7 @@ Thumbs.db
 
 # Vercel
 .vercel
+
 dump
+.playwright*
+rules

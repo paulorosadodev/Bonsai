@@ -13,9 +13,9 @@ import { useFinancePending } from "./finance-pending";
 
 const desktopNavTabs = [
     { href: "/", label: "Resumo", match: (p: string) => p === "/", finance: true },
-    { href: "/invoice", label: "Fatura", match: (p: string) => p.startsWith("/invoice"), finance: true },
-    { href: "/transactions", label: "Lista", match: (p: string) => p === "/transactions" || (p.startsWith("/transactions/") && !p.startsWith("/transactions/new")), finance: false },
-    { href: "/settings", label: "Ajustes", match: (p: string) => p.startsWith("/settings"), finance: false },
+    { href: "/fatura", label: "Fatura", match: (p: string) => p.startsWith("/fatura"), finance: true },
+    { href: "/transacoes", label: "Lista", match: (p: string) => p === "/transacoes" || (p.startsWith("/transacoes/") && !p.startsWith("/transacoes/nova")), finance: false },
+    { href: "/ajustes", label: "Ajustes", match: (p: string) => p.startsWith("/ajustes"), finance: false },
 ];
 
 export function AppHeader() {

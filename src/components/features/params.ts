@@ -43,8 +43,16 @@ export function formatYearLabel(year: number) {
     return `${year}`;
 }
 
-const monthLabels = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"] as const;
-const monthShortLabels = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"] as const;
+export const monthLabels = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"] as const;
+export const monthShortLabels = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"] as const;
+
+export function splitMonthLabel(month: string): { monthName: string; year: number } {
+    const [year, monthNumber] = month.split("-").map(Number);
+    return {
+        monthName: monthLabels[monthNumber - 1] ?? "",
+        year,
+    };
+}
 
 export function formatMonthLabel(month: string) {
     const [year, monthNumber] = month.split("-").map(Number);
@@ -70,6 +78,34 @@ export function formatCivilDate(value: string) {
     return `${day}/${month}/${year}`;
 }
 
+const weekdayShort = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"] as const;
+const monthNamesLower = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"] as const;
+
+export function formatDateGroupHeader(civilDate: string): string {
+    const today = currentCivilDate();
+    const [y, m, d] = civilDate.split("-").map(Number);
+    const [ty, tm, td] = today.split("-").map(Number);
+
+    const targetUtc = Date.UTC(y, m - 1, d);
+    const todayUtc = Date.UTC(ty, tm - 1, td);
+    const diffDays = Math.round((todayUtc - targetUtc) / 86_400_000);
+
+    const monthName = monthNamesLower[m - 1] ?? "";
+    const dateObj = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    const weekday = weekdayShort[dateObj.getUTCDay()] ?? "";
+
+    if (diffDays === 0) {
+        return `Hoje, ${d} de ${monthName}`;
+    }
+    if (diffDays === 1) {
+        return `Ontem, ${d} de ${monthName}`;
+    }
+    if (y !== ty) {
+        return `${d} de ${monthName} de ${y}, ${weekday}`;
+    }
+    return `${d} de ${monthName}, ${weekday}`;
+}
+
 export function readParam(searchParams: Record<string, string | string[] | undefined>, key: string) {
     const value = searchParams[key];
     return Array.isArray(value) ? value[0] : value;
@@ -91,7 +127,7 @@ export function searchHref(path: string, params: Record<string, string | boolean
 }
 
 export function isFinancePath(pathname: string) {
-    return pathname === "/" || pathname.startsWith("/invoice");
+    return pathname === "/" || pathname.startsWith("/fatura") || pathname.startsWith("/invoice");
 }
 
 export function financeSearchHref(path: string, searchParams: Pick<URLSearchParams, "get">, preserveMonth = false) {

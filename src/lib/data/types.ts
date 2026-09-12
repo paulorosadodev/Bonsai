@@ -25,22 +25,38 @@ export type BudgetKpi = {
     periodKind: "month" | "year";
 };
 
+export type FixedVsVariableItem = {
+    id: string;
+    name: string;
+    color: string;
+    icon: string | null;
+    amountCents: number;
+    percentage: number;
+    isTag?: boolean;
+};
+
 export type FixedVsVariableKpi = {
     fixedCents: number;
     fixedPercentage: number;
     variableCents: number;
     variablePercentage: number;
+    fixedCategories: FixedVsVariableItem[];
+    variableCategories: FixedVsVariableItem[];
 };
 
 export type PaymentDistributionKpi = {
     pixCents: number;
     pixPercentage: number;
+    pixCount: number;
+    pixAverageCents: number;
+    pixCategories: FixedVsVariableItem[];
     creditCents: number;
     creditPercentage: number;
     creditSingleCents: number;
     creditSinglePercentage: number;
     creditInstallmentsCents: number;
     creditInstallmentsPercentage: number;
+    creditCategories: FixedVsVariableItem[];
 };
 
 export type LargestExpenseItem = {

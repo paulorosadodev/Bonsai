@@ -124,26 +124,7 @@ export async function GET(request: NextRequest) {
             const reimbursedCents = hasReimbursement ? (row.reimbursed_amount_cents ?? grossCents) : 0;
             const netCents = Math.max(0, grossCents - reimbursedCents);
 
-            return [
-                row.id,
-                formatTransactionName(row.name, locName ? { name: locName } : null),
-                row.description,
-                grossCents,
-                amountBrl(grossCents),
-                reimbursedCents,
-                amountBrl(reimbursedCents),
-                netCents,
-                amountBrl(netCents),
-                row.purchase_date,
-                row.payment_method,
-                row.installment_count,
-                getCatName(row.category_id),
-                getSpecName(row.specific_tag_id),
-                serializeTags(getGenNames(row.general_tag_ids ?? [])),
-                locName,
-                row.created_at,
-                row.updated_at,
-            ] as Array<string | number | null>;
+            return [row.id, formatTransactionName(row.name, locName ? { name: locName } : null), row.description, grossCents, amountBrl(grossCents), reimbursedCents, amountBrl(reimbursedCents), netCents, amountBrl(netCents), row.purchase_date, row.payment_method, row.installment_count, getCatName(row.category_id), getSpecName(row.specific_tag_id), serializeTags(getGenNames(row.general_tag_ids ?? [])), locName, row.created_at, row.updated_at] as Array<string | number | null>;
         }),
         ...recurrences.map((occurrence) => {
             const hasReimbursement = (occurrence.generalTagIds ?? []).some(isReimbursementTag);
@@ -151,26 +132,9 @@ export async function GET(request: NextRequest) {
             const reimbursedCents = hasReimbursement ? grossCents : 0;
             const netCents = hasReimbursement ? 0 : grossCents;
 
-            return [
-                occurrenceKey(occurrence.seriesId, occurrence.occurrenceDate),
-                occurrence.name,
-                occurrence.description,
-                grossCents,
-                amountBrl(grossCents),
-                reimbursedCents,
-                amountBrl(reimbursedCents),
-                netCents,
-                amountBrl(netCents),
-                occurrence.occurrenceDate,
-                occurrence.paymentMethod,
-                1,
-                getCatName(occurrence.categoryId),
-                getSpecName(occurrence.specificTagId),
-                serializeTags(getGenNames(occurrence.generalTagIds ?? [])),
-                null,
-                occurrence.occurrenceDate,
-                occurrence.occurrenceDate,
-            ] as Array<string | number | null>;
+            return [occurrenceKey(occurrence.seriesId, occurrence.occurrenceDate), occurrence.name, occurrence.description, grossCents, amountBrl(grossCents), reimbursedCents, amountBrl(reimbursedCents), netCents, amountBrl(netCents), occurrence.occurrenceDate, occurrence.paymentMethod, 1, getCatName(occurrence.categoryId), getSpecName(occurrence.specificTagId), serializeTags(getGenNames(occurrence.generalTagIds ?? [])), null, occurrence.occurrenceDate, occurrence.occurrenceDate] as Array<
+                string | number | null
+            >;
         }),
     ].sort((a, b) => String(a[9]).localeCompare(String(b[9])) || String(a[1]).localeCompare(String(b[1])));
 

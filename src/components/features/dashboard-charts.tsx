@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useReducedMotion } from "motion/react";
 import { ChevronDown, ChevronRight, PieChart as PieChartIcon, TrendingUp, X } from "lucide-react";
 import { formatBrl, formatChartValue } from "@/lib/domain/money";
@@ -46,7 +46,17 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Readonl
 
 const tooltipWrapperStyle = { outline: "none", zIndex: 20 };
 const tooltipContentStyle = { background: "transparent", border: "none", padding: 0, boxShadow: "none" };
-const tooltipCursor = { fill: "rgba(167, 139, 250, 0.12)" };
+const tooltipCursor = { fill: "rgba(167, 139, 250, 0.08)", radius: 6 };
+
+function formatYAxisTick(cents: number) {
+    if (cents <= 0) return "0";
+    const reais = cents / 100;
+    if (reais >= 1000) {
+        const k = reais / 1000;
+        return `R$ ${k % 1 === 0 ? k : k.toFixed(1).replace(".", ",")}k`;
+    }
+    return `R$ ${reais}`;
+}
 
 function ChartViewport({ className, height, width, clickable = false, children }: { className: string; height?: number; width?: string; clickable?: boolean; children: ReactNode }) {
     const ready = useSyncExternalStore(
@@ -142,6 +152,8 @@ export function CategoryChart({ items, selectedCategoryId }: { items: DashboardC
         );
     }
 
+    const chartHeight = Math.max(224, rows.length * 28);
+
     return (
         <Card ref={cardRef} className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
@@ -176,7 +188,7 @@ export function CategoryChart({ items, selectedCategoryId }: { items: DashboardC
                 </button>
             </div>
 
-            <ChartViewport className="h-56 w-full" clickable>
+            <ChartViewport className="w-full" height={chartHeight} clickable>
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={rows}
@@ -197,7 +209,7 @@ export function CategoryChart({ items, selectedCategoryId }: { items: DashboardC
                         }}
                     >
                         <XAxis type="number" hide domain={[0, (dataMax: number) => (dataMax > 0 ? Math.round(dataMax * 1.25) : 1000)]} />
-                        <YAxis type="category" dataKey="label" width={92} tick={{ fill: "var(--muted)", fontSize: 12, cursor: "pointer" }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="label" width={92} interval={0} tick={{ fill: "var(--muted)", fontSize: 12, cursor: "pointer" }} axisLine={false} tickLine={false} />
                         <Tooltip cursor={tooltipCursor} content={<ChartTooltip />} wrapperStyle={tooltipWrapperStyle} contentStyle={tooltipContentStyle} />
                         <Bar dataKey="amountCents" radius={[0, 8, 8, 0]} isAnimationActive={!reduce} maxBarSize={22} cursor="pointer" label={renderCategoryBarLabel}>
                             {rows.map((row) => {
@@ -351,17 +363,15 @@ export function HistoryChart({ items, selectedMonth, centered = false }: { items
                   label: formatAxisMonth(m),
                   title: formatMonthLabel(m),
                   isCurrent,
-                  fill: isCurrent ? "var(--orchid)" : "var(--violet)",
               };
           })
         : visibleHistory(items, range).map((item) => {
-              const isCurrent = item.month === (selectedMonth ?? currentMonth());
+              const isCurrent = item.month === targetMonth;
               return {
                   ...item,
                   label: formatAxisMonth(item.month),
                   title: formatMonthLabel(item.month),
                   isCurrent,
-                  fill: isCurrent && selectedMonth ? "var(--orchid)" : "var(--violet)",
               };
           });
 
@@ -374,8 +384,10 @@ export function HistoryChart({ items, selectedMonth, centered = false }: { items
         const row = rows[index];
         const isCurrent = row?.isCurrent;
 
+        if (value <= 0) return null;
+
         return (
-            <text x={x + width / 2} y={Math.max(y - 6, 12)} textAnchor="middle" fill={isCurrent ? "var(--orchid)" : "var(--muted)"} fontSize={centered ? (isDesktop ? 12 : 10) : 9} fontWeight={isCurrent ? 700 : 500} className="select-none pointer-events-none tabular">
+            <text x={x + width / 2} y={Math.max(y - 8, 14)} textAnchor="middle" fill={isCurrent ? "var(--orchid)" : "var(--muted)"} fontSize={centered ? (isDesktop ? 11 : 9.5) : 9.5} fontWeight={isCurrent ? 700 : 500} className="select-none pointer-events-none tabular" style={{ opacity: isCurrent ? 1 : 0.85 }}>
                 {formatChartValue(value)}
             </text>
         );
@@ -435,12 +447,12 @@ export function HistoryChart({ items, selectedMonth, centered = false }: { items
             ) : (
                 <>
                     <div ref={centered ? undefined : scrollerRef} className={centered ? "w-full" : "overflow-x-auto overscroll-x-contain"}>
-                        <ChartViewport className="h-52 min-w-full" clickable width={centered ? "100%" : `max(100%, ${rows.length * HISTORY_COLUMN_WIDTH}px)`}>
+                        <ChartViewport className="h-60 min-w-full" clickable width={centered ? "100%" : `max(100%, ${rows.length * HISTORY_COLUMN_WIDTH}px)`}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
                                     data={rows}
                                     style={{ cursor: "pointer" }}
-                                    margin={{ top: 22, right: 8, left: 4, bottom: 0 }}
+                                    margin={{ top: 24, right: 10, left: -6, bottom: 6 }}
                                     onClick={(state, event) => {
                                         event?.stopPropagation?.();
                                         const index = typeof state?.activeTooltipIndex === "number" ? state.activeTooltipIndex : typeof state?.activeIndex === "number" ? state.activeIndex : -1;
@@ -454,6 +466,18 @@ export function HistoryChart({ items, selectedMonth, centered = false }: { items
                                         }
                                     }}
                                 >
+                                    <defs>
+                                        <linearGradient id="monthlyActiveBar" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#f5e8ff" stopOpacity={1} />
+                                            <stop offset="35%" stopColor="var(--orchid)" stopOpacity={0.95} />
+                                            <stop offset="100%" stopColor="var(--violet)" stopOpacity={0.75} />
+                                        </linearGradient>
+                                        <linearGradient id="monthlyStandardBar" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="var(--violet)" stopOpacity={0.55} />
+                                            <stop offset="100%" stopColor="var(--surface-raised)" stopOpacity={0.3} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid vertical={false} stroke="rgba(255, 255, 255, 0.05)" strokeDasharray="3 3" />
                                     <XAxis
                                         dataKey="label"
                                         interval={0}
@@ -461,20 +485,38 @@ export function HistoryChart({ items, selectedMonth, centered = false }: { items
                                             const row = rows.find((r) => r.label === payload.value);
                                             const isCurrent = row?.isCurrent;
                                             return (
-                                                <text x={x} y={Number(y) + 12} textAnchor="middle" fill={isCurrent ? "var(--orchid)" : "var(--muted)"} fontSize={11} fontWeight={isCurrent ? 700 : 600} cursor="pointer">
-                                                    {payload.value}
-                                                </text>
+                                                <g>
+                                                    <text x={x} y={Number(y) + 14} textAnchor="middle" fill={isCurrent ? "var(--orchid)" : "rgba(163, 152, 181, 0.7)"} fontSize={isCurrent ? 11.5 : 11} fontWeight={isCurrent ? 700 : 500} cursor="pointer">
+                                                        {payload.value}
+                                                    </text>
+                                                    {isCurrent ? <circle cx={x} cy={Number(y) + 24} r={2} fill="var(--orchid)" /> : null}
+                                                </g>
                                             );
                                         }}
                                         axisLine={false}
                                         tickLine={false}
                                     />
-                                    <YAxis hide domain={[0, (dataMax: number) => (dataMax > 0 ? Math.round(dataMax * 1.25) : 1000)]} />
+                                    <YAxis axisLine={false} tickLine={false} tickCount={4} domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil((dataMax * 1.25) / 50000) * 50000 : 100000)]} tick={{ fill: "rgba(163, 152, 181, 0.55)", fontSize: 10, fontFamily: "var(--font-sans)" }} tickFormatter={formatYAxisTick} width={44} />
                                     <Tooltip cursor={tooltipCursor} content={<ChartTooltip />} wrapperStyle={tooltipWrapperStyle} contentStyle={tooltipContentStyle} />
-                                    <Bar dataKey="amountCents" radius={[8, 8, 0, 0]} isAnimationActive={!reduce} maxBarSize={centered ? (isDesktop ? 44 : 32) : 28} cursor="pointer" label={renderBarLabel}>
-                                        {rows.map((row) => (
-                                            <Cell key={row.month} fill={row.fill} opacity={row.amountCents === 0 ? 0.35 : 1} />
-                                        ))}
+                                    <Bar dataKey="amountCents" radius={[6, 6, 2, 2]} isAnimationActive={!reduce} maxBarSize={centered ? (isDesktop ? 22 : 16) : 18} cursor="pointer" label={renderBarLabel} background={{ fill: "rgba(255, 255, 255, 0.03)", radius: 6 }}>
+                                        {rows.map((row) => {
+                                            const isCurrent = row.isCurrent;
+                                            const isZero = row.amountCents === 0;
+
+                                            return (
+                                                <Cell
+                                                    key={row.month}
+                                                    fill={isZero ? "transparent" : isCurrent ? "url(#monthlyActiveBar)" : "url(#monthlyStandardBar)"}
+                                                    stroke="none"
+                                                    strokeWidth={0}
+                                                    cursor="pointer"
+                                                    style={{
+                                                        transition: "filter 200ms ease, opacity 200ms ease",
+                                                        filter: isCurrent && !isZero ? "drop-shadow(0 0 10px rgba(216, 180, 254, 0.45))" : undefined,
+                                                    }}
+                                                />
+                                            );
+                                        })}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>

@@ -11,7 +11,7 @@ import { hasReimbursement } from "./entries";
 import { currentMonth, monthEnd, monthStart, shiftCalendarMonth } from "./month";
 import { earliestSeriesStart, loadRecurrenceStateFrom, projectLoadedRecurrences } from "./recurrences";
 import { getSettings, getEffectiveMonthlyBudget, getAnnualMonthlyBudgets } from "./settings";
-import { formatTransactionName, type AnnualDashboardData, type AnnualMonthPoint, type AnnualYearPoint, type BudgetKpi, type BurnRateKpi, type DashboardCategoryTotal, type DashboardData, type DashboardEntryItem, type DashboardKpis, type DashboardSpecificTagTotal, type DashboardSubEntry, type DashboardTopDestination, type FixedVsVariableKpi, type LargestExpenseItem, type LargestExpenseKpi, type PaymentDistributionKpi, type TagInfo } from "./types";
+import { formatTransactionName, type AnnualDashboardData, type AnnualMonthPoint, type AnnualYearPoint, type BudgetKpi, type BurnRateKpi, type DashboardCategoryTotal, type DashboardData, type DashboardEntryItem, type DashboardKpis, type DashboardSpecificTagTotal, type DashboardSubEntry, type DashboardTopDestination, type FixedVsVariableItem, type FixedVsVariableKpi, type LargestExpenseItem, type LargestExpenseKpi, type PaymentDistributionKpi, type TagInfo } from "./types";
 
 function normalizeSearchText(text: string) {
     return text
@@ -123,17 +123,17 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
                 }
             }
 
-            const effectiveAmountCents = (!includeReimbursements && reimbursedCents && reimbursedCents > 0)
-                ? Math.max(0, row.amount_cents - reimbursedCents)
-                : row.amount_cents;
+            const effectiveAmountCents = !includeReimbursements && reimbursedCents && reimbursedCents > 0 ? Math.max(0, row.amount_cents - reimbursedCents) : row.amount_cents;
 
-            return [{
-                amountCents: effectiveAmountCents,
-                competenceDate: row.competence_date,
-                categoryId: tx?.category_id,
-                generalTagIds: tx?.general_tag_ids ?? [],
-                isForecast: false,
-            }];
+            return [
+                {
+                    amountCents: effectiveAmountCents,
+                    competenceDate: row.competence_date,
+                    categoryId: tx?.category_id,
+                    generalTagIds: tx?.general_tag_ids ?? [],
+                    isForecast: false,
+                },
+            ];
         }),
         ...projected
             .filter((occurrence) => {
@@ -197,10 +197,8 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
         .map((row) => {
             const tx = row.transactions!;
             const reimbursedCents = tx.reimbursed_amount_cents;
-            const hasPartial = (!includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0));
-            const effectiveAmountCents = hasPartial
-                ? Math.max(0, row.amount_cents - reimbursedCents!)
-                : row.amount_cents;
+            const hasPartial = !includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0);
+            const effectiveAmountCents = hasPartial ? Math.max(0, row.amount_cents - reimbursedCents!) : row.amount_cents;
             const cat = categoriesMap.get(tx.category_id) ?? {
                 id: tx.category_id,
                 name: "Categoria",
@@ -240,7 +238,7 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
                 location: loc,
                 isRecurring: false,
                 isForecast: false,
-                editHref: `/transactions/${tx.id}/edit`,
+                editHref: `/transacoes/${tx.id}/editar`,
             };
         });
 
@@ -399,7 +397,11 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
     // 3. Fixos vs Variáveis
     let fixedCents = 0;
     let variableCents = 0;
+    const fixedMap = new Map<string, FixedVsVariableItem>();
+    const variableMap = new Map<string, FixedVsVariableItem>();
+
     for (const entry of allMonthEntries) {
+        if (entry.amountCents <= 0) continue;
         const isFixedCat = entry.categoryId === "fixed_expenses" || entry.category.name.toLowerCase() === "contas fixas";
         const isFixed = entry.isRecurring || entry.installmentCount > 1 || isFixedCat;
         if (isFixed) {
@@ -407,30 +409,87 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
         } else {
             variableCents += entry.amountCents;
         }
+
+        const isTag = Boolean(entry.specificTag);
+        const id = entry.specificTag?.id ?? entry.category.id;
+        const name = entry.specificTag?.name ?? entry.category.name;
+        const color = entry.specificTag?.color ?? entry.category.color;
+        const icon = entry.specificTag ? (entry.specificTag.icon ?? null) : (entry.category.icon ?? null);
+
+        const targetMap = isFixed ? fixedMap : variableMap;
+        const existing = targetMap.get(id);
+        if (existing) {
+            existing.amountCents += entry.amountCents;
+        } else {
+            targetMap.set(id, { id, name, color, icon, amountCents: entry.amountCents, percentage: 0, isTag });
+        }
     }
     const fvTotal = fixedCents + variableCents;
     const fixedPercentage = fvTotal > 0 ? Math.round((fixedCents / fvTotal) * 100) : 0;
     const variablePercentage = fvTotal > 0 ? 100 - fixedPercentage : 0;
+
+    const fixedCategories: FixedVsVariableItem[] = [...fixedMap.values()]
+        .map((item) => ({
+            ...item,
+            percentage: fixedCents > 0 ? Math.round((item.amountCents / fixedCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents);
+
+    const variableCategories: FixedVsVariableItem[] = [...variableMap.values()]
+        .map((item) => ({
+            ...item,
+            percentage: variableCents > 0 ? Math.round((item.amountCents / variableCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents);
 
     const fixedVsVariable: FixedVsVariableKpi = {
         fixedCents,
         fixedPercentage,
         variableCents,
         variablePercentage,
+        fixedCategories,
+        variableCategories,
     };
 
     // 4. Meio de Pagamento
     let pixCents = 0;
+    let pixCount = 0;
     let creditSingleCents = 0;
     let creditInstallmentsCents = 0;
+    const creditMap = new Map<string, FixedVsVariableItem>();
+    const pixMap = new Map<string, FixedVsVariableItem>();
+
     for (const entry of allMonthEntries) {
+        if (entry.amountCents <= 0) continue;
+
+        const isTag = Boolean(entry.specificTag);
+        const id = entry.specificTag?.id ?? entry.category.id;
+        const name = entry.specificTag?.name ?? entry.category.name;
+        const color = entry.specificTag?.color ?? entry.category.color;
+        const icon = entry.specificTag ? (entry.specificTag.icon ?? null) : (entry.category.icon ?? null);
+
         if (entry.paymentMethod === "pix") {
             pixCents += entry.amountCents;
+            pixCount += 1;
+
+            const existing = pixMap.get(id);
+            if (existing) {
+                existing.amountCents += entry.amountCents;
+            } else {
+                pixMap.set(id, { id, name, color, icon, amountCents: entry.amountCents, percentage: 0, isTag });
+            }
         } else {
-            if (entry.installmentCount > 1 || entry.isRecurring) {
+            if (entry.installmentCount > 1) {
                 creditInstallmentsCents += entry.amountCents;
             } else {
                 creditSingleCents += entry.amountCents;
+            }
+
+            const existing = creditMap.get(id);
+            if (existing) {
+                existing.amountCents += entry.amountCents;
+            } else {
+                creditMap.set(id, { id, name, color, icon, amountCents: entry.amountCents, percentage: 0, isTag });
             }
         }
     }
@@ -438,24 +497,43 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
     const payTotal = pixCents + creditCents;
     const pixPercentage = payTotal > 0 ? Math.round((pixCents / payTotal) * 100) : 0;
     const creditPercentage = payTotal > 0 ? 100 - pixPercentage : 0;
-    const creditSinglePercentage = creditCents > 0 ? Math.round((creditSingleCents / creditCents) * 100) : 0;
-    const creditInstallmentsPercentage = creditCents > 0 ? 100 - creditSinglePercentage : 0;
+    const creditInstallmentsPercentage = creditCents > 0 ? Math.round((creditInstallmentsCents / creditCents) * 100) : 0;
+    const creditSinglePercentage = creditCents > 0 ? 100 - creditInstallmentsPercentage : 0;
+    const pixAverageCents = pixCount > 0 ? Math.round(pixCents / pixCount) : 0;
+
+    const creditCategories: FixedVsVariableItem[] = [...creditMap.values()]
+        .map((item) => ({
+            ...item,
+            percentage: creditCents > 0 ? Math.round((item.amountCents / creditCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents);
+
+    const pixCategories: FixedVsVariableItem[] = [...pixMap.values()]
+        .map((item) => ({
+            ...item,
+            percentage: pixCents > 0 ? Math.round((item.amountCents / pixCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents);
 
     const paymentDistribution: PaymentDistributionKpi = {
         pixCents,
         pixPercentage,
+        pixCount,
+        pixAverageCents,
+        pixCategories,
         creditCents,
         creditPercentage,
         creditSingleCents,
         creditSinglePercentage,
         creditInstallmentsCents,
         creditInstallmentsPercentage,
+        creditCategories,
     };
 
-    // 5. Maiores Despesas do Mês (Top 5)
+    // 5. Maiores Despesas do Mês (Top 10 para expansão)
     const sortedMonthEntries = [...allMonthEntries].filter((entry) => entry.amountCents > 0).sort((a, b) => b.amountCents - a.amountCents);
 
-    const largestExpenses: LargestExpenseItem[] = sortedMonthEntries.slice(0, 5).map((entry) => ({
+    const largestExpenses: LargestExpenseItem[] = sortedMonthEntries.slice(0, 10).map((entry) => ({
         name: entry.name,
         amountCents: entry.amountCents,
         date: entry.purchaseDate,
@@ -537,7 +615,7 @@ export async function getDashboard(params: z.input<typeof transactionFiltersSche
             percentage: totalUberDestinationCents > 0 ? Math.round((dest.amountCents / totalUberDestinationCents) * 100) : 0,
         }))
         .sort((a, b) => b.amountCents - a.amountCents)
-        .slice(0, 5);
+        .slice(0, 10);
 
     const kpis: DashboardKpis = {
         burnRate,
@@ -613,17 +691,17 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
                 }
             }
 
-            const effectiveAmountCents = (!includeReimbursements && reimbursedCents && reimbursedCents > 0)
-                ? Math.max(0, row.amount_cents - reimbursedCents)
-                : row.amount_cents;
+            const effectiveAmountCents = !includeReimbursements && reimbursedCents && reimbursedCents > 0 ? Math.max(0, row.amount_cents - reimbursedCents) : row.amount_cents;
 
-            return [{
-                amountCents: effectiveAmountCents,
-                competenceDate: row.competence_date,
-                categoryId: tx?.category_id,
-                generalTagIds: tx?.general_tag_ids ?? [],
-                isForecast: false,
-            }];
+            return [
+                {
+                    amountCents: effectiveAmountCents,
+                    competenceDate: row.competence_date,
+                    categoryId: tx?.category_id,
+                    generalTagIds: tx?.general_tag_ids ?? [],
+                    isForecast: false,
+                },
+            ];
         }),
         ...projected
             .filter((occurrence) => {
@@ -739,10 +817,8 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
         .map((row) => {
             const tx = row.transactions!;
             const reimbursedCents = tx.reimbursed_amount_cents;
-            const hasPartial = (!includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0));
-            const effectiveAmountCents = hasPartial
-                ? Math.max(0, row.amount_cents - reimbursedCents!)
-                : row.amount_cents;
+            const hasPartial = !includeReimbursements && Boolean(reimbursedCents && reimbursedCents > 0);
+            const effectiveAmountCents = hasPartial ? Math.max(0, row.amount_cents - reimbursedCents!) : row.amount_cents;
             const cat = categoriesMap.get(tx.category_id) ?? {
                 id: tx.category_id,
                 name: "Categoria",
@@ -782,7 +858,7 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
                 location: loc,
                 isRecurring: false,
                 isForecast: false,
-                editHref: `/transactions/${tx.id}/edit`,
+                editHref: `/transacoes/${tx.id}/editar`,
             };
         });
 
@@ -1060,7 +1136,11 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
     // 3. Fixos vs Variáveis Anual
     let annualFixedCents = 0;
     let annualVariableCents = 0;
+    const annualFixedMap = new Map<string, FixedVsVariableItem>();
+    const annualVariableMap = new Map<string, FixedVsVariableItem>();
+
     for (const entry of allYearEntries) {
+        if (entry.amountCents <= 0) continue;
         const isFixedCat = entry.categoryId === "fixed_expenses" || entry.category.name.toLowerCase() === "contas fixas";
         const isFixed = entry.isRecurring || entry.installmentCount > 1 || isFixedCat;
         if (isFixed) {
@@ -1068,30 +1148,87 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
         } else {
             annualVariableCents += entry.amountCents;
         }
+
+        const isTag = Boolean(entry.specificTag);
+        const id = entry.specificTag?.id ?? entry.category.id;
+        const name = entry.specificTag?.name ?? entry.category.name;
+        const color = entry.specificTag?.color ?? entry.category.color;
+        const icon = entry.specificTag ? (entry.specificTag.icon ?? null) : (entry.category.icon ?? null);
+
+        const targetMap = isFixed ? annualFixedMap : annualVariableMap;
+        const existing = targetMap.get(id);
+        if (existing) {
+            existing.amountCents += entry.amountCents;
+        } else {
+            targetMap.set(id, { id, name, color, icon, amountCents: entry.amountCents, percentage: 0, isTag });
+        }
     }
     const annualFvTotal = annualFixedCents + annualVariableCents;
     const annualFixedPct = annualFvTotal > 0 ? Math.round((annualFixedCents / annualFvTotal) * 100) : 0;
     const annualVarPct = annualFvTotal > 0 ? 100 - annualFixedPct : 0;
+
+    const annualFixedCategories: FixedVsVariableItem[] = [...annualFixedMap.values()]
+        .map((item) => ({
+            ...item,
+            percentage: annualFixedCents > 0 ? Math.round((item.amountCents / annualFixedCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents);
+
+    const annualVariableCategories: FixedVsVariableItem[] = [...annualVariableMap.values()]
+        .map((item) => ({
+            ...item,
+            percentage: annualVariableCents > 0 ? Math.round((item.amountCents / annualVariableCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents);
 
     const fixedVsVariable: FixedVsVariableKpi = {
         fixedCents: annualFixedCents,
         fixedPercentage: annualFixedPct,
         variableCents: annualVariableCents,
         variablePercentage: annualVarPct,
+        fixedCategories: annualFixedCategories,
+        variableCategories: annualVariableCategories,
     };
 
     // 4. Meio de Pagamento Anual
     let annualPixCents = 0;
+    let annualPixCount = 0;
     let annualCreditSingleCents = 0;
     let annualCreditInstallmentsCents = 0;
+    const annualCreditMap = new Map<string, FixedVsVariableItem>();
+    const annualPixMap = new Map<string, FixedVsVariableItem>();
+
     for (const entry of allYearEntries) {
+        if (entry.amountCents <= 0) continue;
+
+        const isTag = Boolean(entry.specificTag);
+        const id = entry.specificTag?.id ?? entry.category.id;
+        const name = entry.specificTag?.name ?? entry.category.name;
+        const color = entry.specificTag?.color ?? entry.category.color;
+        const icon = entry.specificTag ? (entry.specificTag.icon ?? null) : (entry.category.icon ?? null);
+
         if (entry.paymentMethod === "pix") {
             annualPixCents += entry.amountCents;
+            annualPixCount += 1;
+
+            const existing = annualPixMap.get(id);
+            if (existing) {
+                existing.amountCents += entry.amountCents;
+            } else {
+                annualPixMap.set(id, { id, name, color, icon, amountCents: entry.amountCents, percentage: 0, isTag });
+            }
         } else {
-            if (entry.installmentCount > 1 || entry.isRecurring) {
+            if (entry.installmentCount > 1) {
                 annualCreditInstallmentsCents += entry.amountCents;
             } else {
                 annualCreditSingleCents += entry.amountCents;
+            }
+
+            const existing = annualCreditMap.get(id);
+            if (existing) {
+                existing.amountCents += entry.amountCents;
+            } else {
+                annualCreditMap.set(id, { id, name, color, icon, amountCents: entry.amountCents, percentage: 0, isTag });
             }
         }
     }
@@ -1099,18 +1236,37 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
     const annualPayTotal = annualPixCents + annualCreditCents;
     const annualPixPct = annualPayTotal > 0 ? Math.round((annualPixCents / annualPayTotal) * 100) : 0;
     const annualCreditPct = annualPayTotal > 0 ? 100 - annualPixPct : 0;
-    const annualCreditSinglePct = annualCreditCents > 0 ? Math.round((annualCreditSingleCents / annualCreditCents) * 100) : 0;
-    const annualCreditInstallmentsPct = annualCreditCents > 0 ? 100 - annualCreditSinglePct : 0;
+    const annualCreditInstallmentsPct = annualCreditCents > 0 ? Math.round((annualCreditInstallmentsCents / annualCreditCents) * 100) : 0;
+    const annualCreditSinglePct = annualCreditCents > 0 ? 100 - annualCreditInstallmentsPct : 0;
+    const annualPixAverageCents = annualPixCount > 0 ? Math.round(annualPixCents / annualPixCount) : 0;
+
+    const annualCreditCategories: FixedVsVariableItem[] = [...annualCreditMap.values()]
+        .map((item) => ({
+            ...item,
+            percentage: annualCreditCents > 0 ? Math.round((item.amountCents / annualCreditCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents);
+
+    const annualPixCategories: FixedVsVariableItem[] = [...annualPixMap.values()]
+        .map((item) => ({
+            ...item,
+            percentage: annualPixCents > 0 ? Math.round((item.amountCents / annualPixCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents);
 
     const paymentDistribution: PaymentDistributionKpi = {
         pixCents: annualPixCents,
         pixPercentage: annualPixPct,
+        pixCount: annualPixCount,
+        pixAverageCents: annualPixAverageCents,
+        pixCategories: annualPixCategories,
         creditCents: annualCreditCents,
         creditPercentage: annualCreditPct,
         creditSingleCents: annualCreditSingleCents,
         creditSinglePercentage: annualCreditSinglePct,
         creditInstallmentsCents: annualCreditInstallmentsCents,
         creditInstallmentsPercentage: annualCreditInstallmentsPct,
+        creditCategories: annualCreditCategories,
     };
 
     // 5. Maior Despesa do Ano (com lançamento unitário somando parcelas)
@@ -1150,10 +1306,10 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
         }
     }
 
-    // 5. Maiores Despesas do Ano (Top 5)
+    // 5. Maiores Despesas do Ano (Top 10 para expansão)
     const sortedExpenses = [...unitExpenseMap.values()].filter((item) => item.amountCents > 0).sort((a, b) => b.amountCents - a.amountCents);
 
-    const largestExpenses: LargestExpenseItem[] = sortedExpenses.slice(0, 5);
+    const largestExpenses: LargestExpenseItem[] = sortedExpenses.slice(0, 10);
     const largestExpense: LargestExpenseKpi = largestExpenses[0] ?? null;
 
     // 6. Tags Específicas do Ano
@@ -1226,7 +1382,7 @@ export async function getAnnualDashboard(params: z.input<typeof transactionFilte
             percentage: totalUberDestinationCents > 0 ? Math.round((dest.amountCents / totalUberDestinationCents) * 100) : 0,
         }))
         .sort((a, b) => b.amountCents - a.amountCents)
-        .slice(0, 5);
+        .slice(0, 10);
 
     const kpis: DashboardKpis = {
         burnRate,

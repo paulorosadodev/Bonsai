@@ -8,20 +8,20 @@ import { cn } from "../ui/cn";
 
 const leftTabs = [
     { href: "/", label: "Resumo", icon: House, match: (pathname: string) => pathname === "/" },
-    { href: "/invoice", label: "Fatura", icon: Receipt, match: (pathname: string) => pathname.startsWith("/invoice") },
+    { href: "/fatura", label: "Fatura", icon: Receipt, match: (pathname: string) => pathname.startsWith("/fatura") },
 ] as const;
 
 function isAdd(pathname: string) {
-    return pathname.startsWith("/transactions/new");
+    return pathname.startsWith("/transacoes/nova");
 }
 
 function isList(pathname: string) {
-    return pathname === "/transactions" || (pathname.startsWith("/transactions/") && !isAdd(pathname));
+    return pathname === "/transacoes" || (pathname.startsWith("/transacoes/") && !isAdd(pathname));
 }
 
 const rightTabs = [
-    { href: "/transactions", label: "Lista", icon: List, match: isList },
-    { href: "/settings", label: "Ajustes", icon: Settings, match: (pathname: string) => pathname.startsWith("/settings") },
+    { href: "/transacoes", label: "Lista", icon: List, match: isList },
+    { href: "/ajustes", label: "Ajustes", icon: Settings, match: (pathname: string) => pathname.startsWith("/ajustes") },
 ] as const;
 
 function NavTab({ href, label, icon: Icon, current }: { href: string; label: string; icon: typeof House; current: boolean }) {
@@ -46,7 +46,7 @@ export function BottomNav() {
                 {leftTabs.map((tab) => (
                     <NavTab key={tab.href} href={carryFinanceQuery ? financeSearchHref(tab.href, searchParams, tab.match(pathname)) : tab.href} label={tab.label} icon={tab.icon} current={tab.match(pathname)} />
                 ))}
-                <Link href="/transactions/new" aria-label="Adicionar transação" aria-current={isAdd(pathname) ? "page" : undefined} className="relative flex min-h-11 flex-col items-center justify-end pb-2 text-[11px] font-medium text-muted">
+                <Link href="/transacoes/nova" aria-label="Adicionar transação" aria-current={isAdd(pathname) ? "page" : undefined} className="relative flex min-h-11 flex-col items-center justify-end pb-2 text-[11px] font-medium text-muted">
                     <span className="absolute bottom-7 flex size-14 items-center justify-center rounded-full bg-violet text-ink ring-[5px] ring-ink shadow-[0_8px_24px_rgb(167_139_250/0.35)]">
                         <Plus className="size-7" strokeWidth={2.5} aria-hidden />
                     </span>

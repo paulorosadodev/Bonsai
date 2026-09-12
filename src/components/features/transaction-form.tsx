@@ -94,7 +94,7 @@ interface TransactionFormProps {
 export function TransactionForm({ mode, transaction, recurrence, today, categories = [], generalTags = [], specificTags = [], locations = [], returnUrl }: TransactionFormProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const resolvedReturnUrl = getReturnUrl(returnUrl ?? searchParams.get("returnUrl"), "/transactions");
+    const resolvedReturnUrl = getReturnUrl(returnUrl ?? searchParams.get("returnUrl"), "/transacoes");
     const editingRecurrence = Boolean(recurrence);
     const defaultCat = categories[0]?.id;
     const defaults = toFormValues(recurrence ?? transaction, today, editingRecurrence, defaultCat);
@@ -530,12 +530,7 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                                             setIsPartialExplicit(false);
                                             setValue("reimbursedAmount", "", { shouldValidate: true, shouldDirty: true });
                                         }}
-                                        className={cn(
-                                            "flex-1 rounded-xl py-2 text-xs font-medium transition-colors cursor-pointer",
-                                            !isPartialMode
-                                                ? "bg-violet text-ink font-semibold"
-                                                : "bg-surface text-muted hover:text-text"
-                                        )}
+                                        className={cn("flex-1 rounded-xl py-2 text-xs font-medium transition-colors cursor-pointer", !isPartialMode ? "bg-violet text-ink font-semibold" : "bg-surface text-muted hover:text-text")}
                                     >
                                         Integral (100%)
                                     </button>
@@ -547,39 +542,20 @@ export function TransactionForm({ mode, transaction, recurrence, today, categori
                                                 setValue("reimbursedAmount", DEFAULT_PARTIAL_REIMBURSEMENT_BRL, { shouldValidate: true, shouldDirty: true });
                                             }
                                         }}
-                                        className={cn(
-                                            "flex-1 rounded-xl py-2 text-xs font-medium transition-colors cursor-pointer",
-                                            isPartialMode
-                                                ? "bg-violet text-ink font-semibold"
-                                                : "bg-surface text-muted hover:text-text"
-                                        )}
+                                        className={cn("flex-1 rounded-xl py-2 text-xs font-medium transition-colors cursor-pointer", isPartialMode ? "bg-violet text-ink font-semibold" : "bg-surface text-muted hover:text-text")}
                                     >
                                         Parcial
                                     </button>
                                 </div>
                                 {isPartialMode ? (
                                     <div className="flex flex-col gap-1.5 pt-1">
-                                        <CurrencyInput
-                                            id="reimbursedAmount"
-                                            label="Valor a ser reembolsado"
-                                            value={reimbursedAmount}
-                                            onChange={(val) => setValue("reimbursedAmount", val, { shouldValidate: true, shouldDirty: true })}
-                                            error={errors.reimbursedAmount?.message}
-                                            placeholder={DEFAULT_PARTIAL_REIMBURSEMENT_BRL}
-                                            autoFocus
-                                        />
-                                        <p className="text-xs text-muted">
-                                            Informe quanto será devolvido. Esse valor será abatido da despesa quando o toggle de reembolsos estiver desligado.
-                                        </p>
+                                        <CurrencyInput id="reimbursedAmount" label="Valor a ser reembolsado" value={reimbursedAmount} onChange={(val) => setValue("reimbursedAmount", val, { shouldValidate: true, shouldDirty: true })} error={errors.reimbursedAmount?.message} placeholder={DEFAULT_PARTIAL_REIMBURSEMENT_BRL} autoFocus />
+                                        <p className="text-xs text-muted">Informe quanto será devolvido. Esse valor será abatido da despesa quando o toggle de reembolsos estiver desligado.</p>
                                     </div>
                                 ) : null}
                             </div>
                         ) : isReimbursementSelected && !isPartialEligible ? (
-                            <p className="text-xs text-muted">
-                                {isRecurring
-                                    ? "Despesas recorrentes aceitam apenas reembolso integral."
-                                    : "Compras parceladas aceitam apenas reembolso integral."}
-                            </p>
+                            <p className="text-xs text-muted">{isRecurring ? "Despesas recorrentes aceitam apenas reembolso integral." : "Compras parceladas aceitam apenas reembolso integral."}</p>
                         ) : null}
                         {errors.generalTags?.message ? <p className={messageTone.danger}>{errors.generalTags.message}</p> : null}
                     </fieldset>

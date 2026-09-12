@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronRight, ReceiptText } from "lucide-react";
+import { ChevronDown, ChevronRight, CreditCard, QrCode, ReceiptText, Repeat } from "lucide-react";
 import { paymentMethodLabels, type CategoryOption, type GeneralTagOption, type SpecificTagOption } from "@/lib/domain/catalog";
 import { formatBrl } from "@/lib/domain/money";
 import type { DashboardEntryItem } from "@/lib/data/types";
@@ -12,86 +12,124 @@ import { recordNavigationState, useRestoreScroll } from "@/lib/navigation/scroll
 import type { TransactionFilters as TransactionFiltersType } from "@/lib/domain/schemas";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
-import { VisualBadge } from "@/components/ui/visual-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatCivilDate } from "./params";
+import { formatDayMonth } from "./params";
 import { TransactionFilters } from "./transaction-filters";
-import { getItemVisual, paymentVisuals, recurringVisual, type TransactionVisual } from "./transaction-visuals";
+import { getItemVisual } from "./transaction-visuals";
 
-const mixedPaymentVisual: TransactionVisual = {
-    color: "#C084FC",
-    icon: paymentVisuals.credit.icon,
-};
-
-function paymentLabel(item: DashboardEntryItem) {
+function getPaymentInfo(item: DashboardEntryItem) {
     if (item.isMixedPayment) {
-        return "Misto";
+        return { label: "Misto", isPix: false, isMixed: true };
     }
-
     if (item.paymentMethod === "pix") {
-        return paymentMethodLabels.pix;
+        return { label: "PIX", isPix: true, isMixed: false };
     }
-
     if (item.installmentCount > 1) {
         if (item.subEntries && item.subEntries.length > 1) {
-            return `${paymentMethodLabels.credit} parcelado`;
+            return { label: "Cartão parcelado", isPix: false, isMixed: false };
         }
-        return `${paymentMethodLabels.credit} ${item.installmentNumber}/${item.installmentCount}`;
+        return { label: `Cartão ${item.installmentNumber}/${item.installmentCount}`, isPix: false, isMixed: false };
     }
-
-    return `${paymentMethodLabels.credit} à vista`;
+    return { label: "Cartão à vista", isPix: false, isMixed: false };
 }
 
 function DashboardEntryCard({ item, returnUrl, isExpanded, onToggleExpand }: { item: DashboardEntryItem; returnUrl?: string; isExpanded: boolean; onToggleExpand: () => void }) {
     const hasSubEntries = Boolean(item.subEntries && item.subEntries.length > 1);
+    const visual = getItemVisual(item.category);
+    const CategoryIcon = visual.icon;
+    const categoryColor = visual.color;
 
-    const dateDisplay = item.dateRangeLabel ?? formatCivilDate(item.purchaseDate);
+    const dateDisplay = item.dateRangeLabel ?? formatDayMonth(item.purchaseDate);
+    const paymentInfo = getPaymentInfo(item);
+
+    const mainRow = (
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+                {/* Left Anchor: Category Avatar */}
+                <div
+                    className="relative flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform duration-150 group-hover:scale-105"
+                    style={{
+                        backgroundColor: `color-mix(in srgb, ${categoryColor} 14%, var(--surface-raised))`,
+                        color: categoryColor,
+                        border: `1px solid color-mix(in srgb, ${categoryColor} 25%, transparent)`,
+                    }}
+                >
+                    <CategoryIcon className="size-5" aria-hidden />
+                </div>
+
+                {/* Center Content */}
+                <div className="flex min-w-0 flex-col gap-0.5">
+                    <p className="truncate text-sm font-medium text-text transition-colors group-hover:text-violet">{item.name}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+                        <span className="tabular font-medium text-text/80">{dateDisplay}</span>
+                        <span className="text-muted/40">•</span>
+                        <span>{item.category.name}</span>
+                        {item.specificTag ? (
+                            <>
+                                <span className="text-muted/40">•</span>
+                                <span className="text-muted/90">{item.specificTag.name}</span>
+                            </>
+                        ) : null}
+
+                        {/* Payment micro-indicator */}
+                        <span className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide", paymentInfo.isPix ? "bg-mint/10 text-mint" : paymentInfo.isMixed ? "bg-orchid/10 text-orchid" : "bg-sky-400/10 text-sky-300")}>
+                            {paymentInfo.isPix ? <QrCode className="size-2.5" aria-hidden /> : <CreditCard className="size-2.5" aria-hidden />}
+                            <span>{paymentInfo.label}</span>
+                        </span>
+
+                        {/* Recurring / Consolidated micro-indicator */}
+                        {item.consolidatedBadge ? (
+                            <span className="inline-flex items-center gap-1 rounded bg-orchid/10 px-1.5 py-0.5 text-[10px] font-medium text-orchid">
+                                <Repeat className="size-2.5" aria-hidden />
+                                <span>{item.consolidatedBadge}</span>
+                            </span>
+                        ) : item.isRecurring ? (
+                            <span className="inline-flex items-center gap-1 rounded bg-orchid/10 px-1.5 py-0.5 text-[10px] font-medium text-orchid" title="Despesa recorrente">
+                                <Repeat className="size-2.5" aria-hidden />
+                                <span>Recorrente</span>
+                            </span>
+                        ) : null}
+
+                        {/* General tags */}
+                        {item.generalTags.length > 0 ? (
+                            <>
+                                <span className="text-muted/40">•</span>
+                                <span className="text-muted/70">{item.generalTags.map((t) => t.name).join(", ")}</span>
+                            </>
+                        ) : null}
+
+                        {/* Description */}
+                        {item.description && (!hasSubEntries || item.installmentCount > 1) ? (
+                            <>
+                                <span className="text-muted/40">•</span>
+                                <span className="truncate max-w-40 text-muted/60">{item.description}</span>
+                            </>
+                        ) : null}
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Side */}
+            <div className="flex shrink-0 items-center gap-2">
+                <div className="flex flex-col items-end">
+                    {item.grossAmountCents && item.grossAmountCents > item.amountCents ? <span className="tabular text-xs text-muted/60 line-through">{formatBrl(item.grossAmountCents)}</span> : null}
+                    <p className="tabular text-sm font-semibold text-text">{formatBrl(item.amountCents)}</p>
+                </div>
+                {hasSubEntries ? <ChevronDown className={cn("size-4 text-muted/50 transition-transform duration-200", isExpanded && "rotate-180 text-violet")} aria-hidden /> : <ChevronRight className="size-4 text-muted/40 transition-transform group-hover:translate-x-0.5 group-hover:text-muted" aria-hidden />}
+            </div>
+        </div>
+    );
 
     if (!hasSubEntries) {
         return (
-            <Link id={`entry-${item.id}`} href={withReturnUrl(item.editHref, returnUrl)} onClick={() => returnUrl && recordNavigationState(returnUrl, item.id)} className="flex flex-col gap-3 rounded-2xl bg-surface p-4 transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-col gap-1">
-                        <p className="font-medium text-text">{item.name}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted">
-                            <span className="tabular">{dateDisplay}</span>
-                            {item.description ? (
-                                <>
-                                    <span>•</span>
-                                    <span className="truncate max-w-48">{item.description}</span>
-                                </>
-                            ) : null}
-                        </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                        {item.grossAmountCents && item.grossAmountCents > item.amountCents ? (
-                            <span className="tabular text-xs text-muted/60 line-through">{formatBrl(item.grossAmountCents)}</span>
-                        ) : null}
-                        <p className="tabular font-medium text-text">{formatBrl(item.amountCents)}</p>
-                        <ChevronRight className="size-4 text-muted" aria-hidden />
-                    </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    <VisualBadge visual={item.isMixedPayment ? mixedPaymentVisual : paymentVisuals[item.paymentMethod]}>{paymentLabel(item)}</VisualBadge>
-                    <VisualBadge visual={getItemVisual(item.category)}>{item.category.name}</VisualBadge>
-                    {item.specificTag ? <VisualBadge visual={getItemVisual(item.specificTag)}>{item.specificTag.name}</VisualBadge> : null}
-                    {item.isRecurring ? <VisualBadge visual={recurringVisual}>Recorrente</VisualBadge> : null}
-                </div>
-                {item.generalTags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                        {item.generalTags.map((tag) => (
-                            <VisualBadge key={tag.id} visual={getItemVisual(tag)}>
-                                {tag.name}
-                            </VisualBadge>
-                        ))}
-                    </div>
-                ) : null}
+            <Link id={`entry-${item.id}`} href={withReturnUrl(item.editHref, returnUrl)} onClick={() => returnUrl && recordNavigationState(returnUrl, item.id)} className="group block transition-colors hover:bg-surface-raised/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet">
+                {mainRow}
             </Link>
         );
     }
 
     return (
-        <div id={`entry-${item.id}`} className="flex flex-col rounded-2xl bg-surface p-4 transition-colors hover:bg-surface-raised/40 border border-surface-raised/40">
+        <div id={`entry-${item.id}`} className="transition-colors">
             <div
                 role="button"
                 tabIndex={0}
@@ -103,49 +141,13 @@ function DashboardEntryCard({ item, returnUrl, isExpanded, onToggleExpand }: { i
                         onToggleExpand();
                     }
                 }}
-                className="flex flex-col gap-3 cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-violet rounded-xl"
+                className="group block cursor-pointer select-none transition-colors hover:bg-surface-raised/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet"
             >
-                <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-col gap-1">
-                        <p className="font-medium text-text">{item.name}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted">
-                            <span className="tabular">{dateDisplay}</span>
-                            {item.description && (!hasSubEntries || item.installmentCount > 1) ? (
-                                <>
-                                    <span>•</span>
-                                    <span className="truncate max-w-48">{item.description}</span>
-                                </>
-                            ) : null}
-                        </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                        {item.grossAmountCents && item.grossAmountCents > item.amountCents ? (
-                            <span className="tabular text-xs text-muted/60 line-through">{formatBrl(item.grossAmountCents)}</span>
-                        ) : null}
-                        <p className="tabular font-medium text-text">{formatBrl(item.amountCents)}</p>
-                        <ChevronDown className={cn("size-4 text-muted transition-transform duration-200", isExpanded && "rotate-180 text-violet")} aria-hidden />
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                    <VisualBadge visual={item.isMixedPayment ? mixedPaymentVisual : paymentVisuals[item.paymentMethod]}>{paymentLabel(item)}</VisualBadge>
-                    <VisualBadge visual={getItemVisual(item.category)}>{item.category.name}</VisualBadge>
-                    {item.specificTag ? <VisualBadge visual={getItemVisual(item.specificTag)}>{item.specificTag.name}</VisualBadge> : null}
-                    {item.consolidatedBadge ? <VisualBadge visual={recurringVisual}>{item.consolidatedBadge}</VisualBadge> : item.isRecurring ? <VisualBadge visual={recurringVisual}>Recorrente</VisualBadge> : null}
-                </div>
-                {item.generalTags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                        {item.generalTags.map((tag) => (
-                            <VisualBadge key={tag.id} visual={getItemVisual(tag)}>
-                                {tag.name}
-                            </VisualBadge>
-                        ))}
-                    </div>
-                ) : null}
+                {mainRow}
             </div>
 
             {isExpanded && item.subEntries ? (
-                <div className="mt-3 flex flex-col gap-2 border-t border-surface-raised/70 pt-3">
+                <div className="flex flex-col gap-2 bg-surface-raised/20 border-t border-surface-raised/50 p-3 pl-12">
                     <div className="flex items-center justify-between gap-2 px-1">
                         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">{item.isRecurring ? `Meses no ano (${item.subEntries.length})` : item.installmentCount > 1 ? `Parcelas no ano (${item.subEntries.length})` : `Compras no ano (${item.subEntries.length})`}</span>
                         {item.isRecurring || item.installmentCount > 1 ? (
@@ -159,19 +161,17 @@ function DashboardEntryCard({ item, returnUrl, isExpanded, onToggleExpand }: { i
                     <ul className="flex flex-col gap-1">
                         {item.subEntries.map((sub) => (
                             <li key={sub.id}>
-                                <Link id={`sub-${sub.id}`} href={withReturnUrl(sub.editHref, returnUrl)} onClick={() => returnUrl && recordNavigationState(returnUrl, item.id)} className="flex items-center justify-between gap-2 rounded-xl bg-surface-raised/30 px-3 py-1.5 text-xs transition-colors hover:bg-surface-raised/70">
-                                    <span className="flex items-center gap-2 min-w-0">
-                                        <span className="text-text font-medium shrink-0">{sub.label}</span>
-                                        {sub.paymentMethod && !item.isRecurring && item.installmentCount <= 1 ? <span className="rounded bg-surface-raised/80 px-1.5 py-0.5 text-[10px] font-medium text-muted shrink-0">{paymentMethodLabels[sub.paymentMethod]}</span> : null}
+                                <Link id={`sub-${sub.id}`} href={withReturnUrl(sub.editHref, returnUrl)} onClick={() => returnUrl && recordNavigationState(returnUrl, item.id)} className="flex items-center justify-between gap-2 rounded-xl bg-surface/60 px-3 py-2 text-xs transition-colors hover:bg-surface-raised/80">
+                                    <span className="flex min-w-0 items-center gap-2">
+                                        <span className="font-medium text-text shrink-0">{sub.label}</span>
+                                        {sub.paymentMethod && !item.isRecurring && item.installmentCount <= 1 ? <span className="rounded bg-surface-raised px-1.5 py-0.5 text-[10px] font-medium text-muted shrink-0">{paymentMethodLabels[sub.paymentMethod]}</span> : null}
                                         {sub.description ? <span className="truncate text-[11px] text-muted">• {sub.description}</span> : null}
                                         {sub.isForecast ? <span className="rounded bg-orchid/10 px-1.5 py-0.5 text-[10px] font-medium text-orchid shrink-0">Previsto</span> : null}
                                     </span>
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                        {sub.grossAmountCents && sub.grossAmountCents > sub.amountCents ? (
-                                            <span className="tabular text-[11px] text-muted/60 line-through">{formatBrl(sub.grossAmountCents)}</span>
-                                        ) : null}
+                                    <div className="flex shrink-0 items-center gap-1.5">
+                                        {sub.grossAmountCents && sub.grossAmountCents > sub.amountCents ? <span className="tabular text-[11px] text-muted/60 line-through">{formatBrl(sub.grossAmountCents)}</span> : null}
                                         <span className="tabular font-semibold text-text">{formatBrl(sub.amountCents)}</span>
-                                        <ChevronRight className="size-3 text-muted" />
+                                        <ChevronRight className="size-3 text-muted/60" />
                                     </div>
                                 </Link>
                             </li>
@@ -317,13 +317,13 @@ export function DashboardEntriesSection({ entries, totalCents, filteredTotalCent
                     <EmptyState title={hasActiveFilters ? "Nenhum lançamento neste filtro" : periodKind === "year" ? "Ainda não há lançamentos neste ano" : "Ainda não há lançamentos neste mês"} description={hasActiveFilters ? "Tente ajustar ou limpar os filtros para ver outros gastos." : periodKind === "year" ? "Quando houver despesas ou parcelas neste ano, elas aparecem aqui." : "Quando houver despesas ou parcelas neste mês, elas aparecem aqui."} />
                 ) : (
                     <>
-                        <ul className="flex flex-col gap-3">
-                            {paginatedEntries.map((item) => (
-                                <li key={item.id}>
-                                    <DashboardEntryCard item={item} returnUrl={currentUrl} isExpanded={expandedIds.includes(item.id)} onToggleExpand={() => toggleCardExpand(item.id)} />
-                                </li>
-                            ))}
-                        </ul>
+                        <div className="overflow-hidden rounded-2xl border border-surface-raised/40 bg-surface shadow-xs">
+                            <div className="divide-y divide-surface-raised/40">
+                                {paginatedEntries.map((item) => (
+                                    <DashboardEntryCard key={item.id} item={item} returnUrl={currentUrl} isExpanded={expandedIds.includes(item.id)} onToggleExpand={() => toggleCardExpand(item.id)} />
+                                ))}
+                            </div>
+                        </div>
 
                         {totalPages > 1 ? (
                             <div className="flex items-center justify-between gap-2 px-1 pt-1">

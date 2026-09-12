@@ -3,7 +3,7 @@
  * when editing, viewing, or canceling transaction operations.
  */
 
-export function sanitizeReturnUrl(url?: string | null, fallback = "/transactions"): string {
+export function sanitizeReturnUrl(url?: string | null, fallback = "/transacoes"): string {
     if (!url || typeof url !== "string") {
         return fallback;
     }
@@ -39,7 +39,7 @@ export function withReturnUrl(href: string, returnUrl?: string | null): string {
     return `${pathname}?${params.toString()}`;
 }
 
-export function getReturnUrl(searchParamsReturnUrl?: string | null, fallback = "/transactions"): string {
+export function getReturnUrl(searchParamsReturnUrl?: string | null, fallback = "/transacoes"): string {
     if (searchParamsReturnUrl) {
         return sanitizeReturnUrl(searchParamsReturnUrl, fallback);
     }
@@ -50,7 +50,7 @@ export function getReturnUrl(searchParamsReturnUrl?: string | null, fallback = "
             if (referrerUrl.origin === window.location.origin) {
                 const target = `${referrerUrl.pathname}${referrerUrl.search}`;
                 // Avoid redirecting back into an edit page or auth page
-                if (!target.includes("/edit") && !target.includes("/login")) {
+                if (!target.includes("/edit") && !target.includes("/editar") && !target.includes("/login") && !target.includes("/entrar")) {
                     return sanitizeReturnUrl(target, fallback);
                 }
             }

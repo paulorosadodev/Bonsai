@@ -12,6 +12,7 @@ import { IconPicker } from "@/components/ui/icon-picker";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { DynamicIcon } from "./transaction-visuals";
+import { CatalogPreview } from "./catalog-preview";
 
 interface CategoryManagerProps {
     categories: CategoryOption[];
@@ -39,11 +40,12 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
     const [catColor, setCatColor] = useState("#A78BFA");
     const [catIcon, setCatIcon] = useState("ReceiptText");
 
-    // Specific tag inline form inside Category Modal
-    const [tagFormOpen, setTagFormOpen] = useState(false);
+    // Specific tag dedicated sub-modal state (totalmente desacoplado)
+    const [tagModalOpen, setTagModalOpen] = useState(false);
     const [editingTagId, setEditingTagId] = useState<string | null>(null);
     const [tagName, setTagName] = useState("");
     const [tagIcon, setTagIcon] = useState("");
+    const [tagModalError, setTagModalError] = useState<string | null>(null);
 
     // Delete Confirmation Dialog state
     const [deleteDialog, setDeleteDialog] = useState<{
@@ -82,7 +84,6 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
         setCatName("");
         setCatColor("#A78BFA");
         setCatIcon("ReceiptText");
-        setTagFormOpen(false);
         setModalError(null);
         setCatModalOpen(true);
     }
@@ -93,8 +94,6 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
         setCatName(cat.name);
         setCatColor(cat.color);
         setCatIcon(cat.icon);
-        setTagFormOpen(false);
-        setEditingTagId(null);
         setModalError(null);
         setCatModalOpen(true);
     }
@@ -134,25 +133,21 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
         }
     }
 
-    // --- Specific Tag actions inside modal ---
+    // --- Specific Tag actions (Submodal dedicada) ---
     function startCreateTag() {
         setEditingTagId(null);
         setTagName("");
         setTagIcon("");
-        setTagFormOpen(true);
+        setTagModalError(null);
+        setTagModalOpen(true);
     }
 
     function startEditTag(tag: SpecificTagOption) {
         setEditingTagId(tag.id);
         setTagName(tag.name);
         setTagIcon(tag.icon || "");
-        setTagFormOpen(true);
-    }
-
-    function cancelTagForm() {
-        setTagFormOpen(false);
-        setEditingTagId(null);
-        setTagName("");
+        setTagModalError(null);
+        setTagModalOpen(true);
     }
 
     async function handleSaveSpecificTag(e: React.FormEvent) {
@@ -160,7 +155,7 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
         if (!tagName.trim() || !activeCatId) return;
 
         setLoading(true);
-        setModalError(null);
+        setTagModalError(null);
 
         const result = editingTagId
             ? await updateSpecificTag(editingTagId, {
@@ -178,13 +173,16 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
         setLoading(false);
 
         if (!result.ok) {
-            setModalError(result.error);
+            setTagModalError(result.error);
             toast.error(result.error);
             return;
         }
 
         toast.success(editingTagId ? "Tag atualizada com sucesso" : "Tag criada com sucesso");
-        cancelTagForm();
+        setTagModalOpen(false);
+        setEditingTagId(null);
+        setTagName("");
+        setTagIcon("");
     }
 
     // --- Deletion actions ---
@@ -223,8 +221,8 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
                         <p className="text-xs text-muted">Gerencie suas categorias e as tags exclusivas vinculadas a cada uma</p>
                     </div>
                 </div>
-                <button type="button" onClick={openCreateCategory} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95">
-                    <Plus className="size-4 shrink-0" aria-hidden />
+                <button type="button" onClick={openCreateCategory} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-violet/25 bg-violet/10 px-3 py-1.5 text-xs font-semibold text-orchid transition-all hover:border-violet/40 hover:bg-violet/20 hover:text-white active:scale-95">
+                    <Plus className="size-3.5 shrink-0" aria-hidden />
                     Nova Categoria
                 </button>
             </div>
@@ -237,10 +235,10 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
             )}
 
             {/* Clean Category List */}
-            <div className="flex flex-col gap-2 lg:max-h-72 lg:overflow-y-auto lg:pr-1.5">
+            <div className="flex flex-col divide-y divide-white/5">
                 {categories.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center rounded-2xl bg-surface-raised py-12 text-center">
-                        <Tag className="mb-2 size-8 text-muted" aria-hidden />
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/10 py-10 text-center">
+                        <Tag className="mb-2 size-7 text-muted" aria-hidden />
                         <p className="text-sm font-medium text-text">Nenhuma categoria encontrada</p>
                         <p className="text-xs text-muted">Crie sua primeira categoria para começar</p>
                     </div>
@@ -249,21 +247,20 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
                         const catTags = tagsByCategory.get(cat.id) || [];
 
                         return (
-                            <div key={cat.id} onClick={() => openManageCategory(cat)} className="group flex w-full cursor-pointer items-center justify-between rounded-2xl bg-surface-raised p-3.5 transition-colors hover:bg-surface-raised/80">
-                                <div className="flex items-center gap-3">
-                                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl shadow-inner" style={{ backgroundColor: `${cat.color}25`, color: cat.color }}>
-                                        <DynamicIcon name={cat.icon} className="size-5" />
+                            <div key={cat.id} onClick={() => openManageCategory(cat)} className="group flex w-full cursor-pointer items-center justify-between py-3 px-2 -mx-2 rounded-xl transition-colors hover:bg-white/3 sm:px-3 sm:-mx-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-xl shadow-inner" style={{ backgroundColor: `${cat.color}20`, color: cat.color }}>
+                                        <DynamicIcon name={cat.icon} className="size-4.5" />
                                     </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-bold text-text">{cat.name}</span>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="truncate text-sm font-semibold text-text transition-colors group-hover:text-white">{cat.name}</span>
                                         <span className="text-xs text-muted">{catTags.length === 0 ? "Sem tags vinculadas" : catTags.length === 1 ? "1 tag específica" : `${catTags.length} tags específicas`}</span>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                    <button type="button" onClick={() => openManageCategory(cat)} className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-surface px-2.5 py-1.5 text-xs font-medium text-text transition-colors hover:bg-surface/80" title="Gerenciar categoria e tags">
-                                        <Pencil className="size-3 text-muted" aria-hidden />
-                                        <span>Editar</span>
+                                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <button type="button" onClick={() => openManageCategory(cat)} className="rounded-lg p-2 text-muted/50 transition-all hover:bg-surface-raised hover:text-text sm:opacity-0 sm:group-hover:opacity-100" title="Gerenciar categoria e tags" aria-label={`Editar categoria ${cat.name}`}>
+                                        <Pencil className="size-3.5" aria-hidden />
                                     </button>
                                     <button
                                         type="button"
@@ -275,7 +272,7 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
                                                 name: cat.name,
                                             })
                                         }
-                                        className="rounded-xl p-2 text-muted transition-colors hover:bg-danger/15 hover:text-danger-fg"
+                                        className="rounded-lg p-2 text-muted/50 transition-all hover:bg-danger/15 hover:text-danger-fg sm:opacity-0 sm:group-hover:opacity-100"
                                         title="Excluir categoria"
                                         aria-label={`Excluir categoria ${cat.name}`}
                                     >
@@ -290,7 +287,7 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
 
             {/* --- Modal: Category Create / Manage --- */}
             <Modal open={catModalOpen} onClose={() => setCatModalOpen(false)} title={catModalMode === "create" ? "Nova Categoria" : `Gerenciar "${activeCategory?.name || catName}"`} description={catModalMode === "create" ? "Personalize o nome, cor e ícone da categoria." : "Edite as configurações da categoria e gerencie suas tags específicas vinculadas."}>
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-5">
                     {modalError && (
                         <div className="flex items-center gap-2 rounded-xl bg-danger/15 p-3 text-xs text-danger-fg">
                             <AlertCircle className="size-4 shrink-0" aria-hidden />
@@ -298,17 +295,32 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
                         </div>
                     )}
 
+                    {/* Preview em Tempo Real */}
+                    <CatalogPreview name={catName} color={catColor} icon={catIcon} type="category" />
+
                     {/* Category Details Form */}
                     <form onSubmit={handleSaveCategory} className="flex flex-col gap-4">
+                        {/* Nome e Ícone integrados */}
                         <div className="flex flex-col gap-1.5">
                             <label className="text-xs font-semibold text-text">Nome da Categoria</label>
-                            <input type="text" placeholder="Ex: Alimentação, Transporte, Saúde..." value={catName} onChange={(e) => setCatName(e.target.value)} required maxLength={50} className="rounded-xl bg-surface px-3.5 py-2.5 text-sm text-text outline-none focus:ring-1 focus:ring-violet" autoFocus={catModalMode === "create"} />
+                            <div className="flex items-center gap-3">
+                                <IconPicker value={catIcon} onChange={setCatIcon} color={catColor} variant="avatar" placement="top" usedMap={categoryIconUsage} showUsageText={false} />
+                                <input type="text" placeholder="Ex: Alimentação, Transporte, Saúde..." value={catName} onChange={(e) => setCatName(e.target.value)} required maxLength={50} className="w-full rounded-xl bg-surface px-3.5 py-2.5 text-sm text-text outline-none focus:ring-1 focus:ring-violet" autoFocus={catModalMode === "create"} />
+                            </div>
+                            {categoryIconUsage?.[catIcon] && categoryIconUsage[catIcon].length > 0 ? (
+                                <p className="flex items-center gap-1.5 pt-0.5 text-[11px] text-muted/70">
+                                    <span className="size-1.5 shrink-0 rounded-full bg-muted/40" aria-hidden />
+                                    <span>
+                                        Ícone também usado em: <span className="font-medium text-text/80">{categoryIconUsage[catIcon].join(", ")}</span>
+                                    </span>
+                                </p>
+                            ) : null}
                         </div>
 
+                        {/* Paleta Compacta e Curada */}
                         <ColorPicker value={catColor} onChange={setCatColor} label="Cor da Categoria" usedMap={categoryColorUsage} />
 
-                        <IconPicker value={catIcon} onChange={setCatIcon} color={catColor} label="Ícone da Categoria" usedMap={categoryIconUsage} />
-
+                        {/* Ações da Categoria */}
                         <div className="flex items-center justify-end gap-2 pt-2">
                             <button type="button" disabled={loading} onClick={() => setCatModalOpen(false)} className="rounded-xl px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface hover:text-text">
                                 Fechar
@@ -325,70 +337,37 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
                         <div className="flex flex-col gap-3 border-t border-white/5 pt-4">
                             <div className="flex items-center justify-between gap-2">
                                 <div>
-                                    <h4 className="text-sm font-bold text-text">Tags Específicas</h4>
-                                    <p className="text-xs text-muted">Subcategorias exclusivas de {activeCategory.name}</p>
+                                    <div className="flex items-center gap-1.5">
+                                        <h4 className="text-sm font-bold text-text">Tags Específicas</h4>
+                                        <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-muted">{activeSpecificTags.length}</span>
+                                    </div>
+                                    <p className="text-xs text-muted">Subcategorias exclusivas vinculadas a {activeCategory.name}</p>
                                 </div>
-                                {!tagFormOpen && (
-                                    <button type="button" onClick={startCreateTag} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-surface px-3 py-1.5 text-xs font-semibold text-text transition-colors hover:bg-surface/80">
-                                        <Plus className="size-3.5 text-violet" aria-hidden />
-                                        Nova Tag
-                                    </button>
-                                )}
+                                <button type="button" onClick={startCreateTag} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-violet/25 bg-violet/10 px-3 py-1.5 text-xs font-semibold text-orchid transition-all hover:border-violet/40 hover:bg-violet/20 hover:text-white active:scale-95">
+                                    <Plus className="size-3.5" aria-hidden />
+                                    Nova Tag
+                                </button>
                             </div>
 
-                            {/* Inline Tag Create/Edit Form */}
-                            {tagFormOpen && (
-                                <form onSubmit={handleSaveSpecificTag} className="flex flex-col gap-3 rounded-2xl bg-surface p-4">
-                                    <h5 className="text-xs font-bold text-text">{editingTagId ? "Editar Tag Específica" : "Nova Tag Específica"}</h5>
-
-                                    <div className="flex flex-col gap-1.5">
-                                        <label className="text-[11px] font-medium text-muted">Nome da Tag</label>
-                                        <input type="text" placeholder="Ex: Restaurante, Celular, Academia..." value={tagName} onChange={(e) => setTagName(e.target.value)} required maxLength={50} className="rounded-xl bg-surface-raised px-3 py-2 text-xs text-text outline-none focus:ring-1 focus:ring-violet" autoFocus />
-                                    </div>
-
-                                    <div className="flex items-center gap-2 rounded-xl bg-surface-raised px-3 py-2 text-xs text-muted">
-                                        <span className="size-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: catColor }} aria-hidden />
-                                        <span>
-                                            Cor vinculada à categoria: <strong className="font-semibold text-text">{catName || "Categoria"}</strong>
-                                        </span>
-                                    </div>
-
-                                    <IconPicker value={tagIcon} onChange={setTagIcon} color={catColor} label="Ícone (opcional)" optional usedMap={tagIconUsage} />
-
-                                    <div className="flex items-center justify-end gap-2 pt-1">
-                                        <button type="button" onClick={cancelTagForm} className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-raised hover:text-text">
-                                            Cancelar
-                                        </button>
-                                        <button type="submit" disabled={loading || !tagName.trim()} className="inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-violet px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95 disabled:opacity-50">
-                                            <Check className="size-3.5" aria-hidden />
-                                            {loading ? "Salvando..." : "Salvar Tag"}
-                                        </button>
-                                    </div>
-                                </form>
-                            )}
-
-                            {/* Stacked List of Specific Tags */}
-                            <div className="flex flex-col gap-2">
-                                {activeSpecificTags.length === 0 ? (
-                                    <div className="rounded-xl bg-surface p-4 text-center text-xs text-muted">Nenhuma tag específica para esta categoria.</div>
-                                ) : (
-                                    activeSpecificTags.map((tag) => (
-                                        <div key={tag.id} className="flex w-full items-center justify-between rounded-xl bg-surface p-2.5 transition-colors">
-                                            <div className="flex items-center gap-2.5">
-                                                <div
-                                                    className="flex size-7 items-center justify-center rounded-lg shadow-inner"
-                                                    style={{
-                                                        backgroundColor: `${tag.color || catColor}25`,
-                                                        color: tag.color || catColor,
-                                                    }}
-                                                >
-                                                    <DynamicIcon name={tag.icon || catIcon} className="size-4" />
-                                                </div>
-                                                <span className="text-xs font-semibold text-text">{tag.name}</span>
+                            {/* Tags em chips interativos e limpos */}
+                            {activeSpecificTags.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-white/10 bg-surface/30 p-4 text-center text-xs text-muted">Nenhuma tag específica para esta categoria. Clique em &quot;Nova Tag&quot; para adicionar.</div>
+                            ) : (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {activeSpecificTags.map((tag) => (
+                                        <div key={tag.id} className="group relative flex items-center gap-2 rounded-xl border border-white/8 bg-surface px-2.5 py-1.5 text-xs text-text transition-all hover:border-white/15 hover:bg-surface-raised">
+                                            <div
+                                                className="flex size-6 shrink-0 items-center justify-center rounded-lg shadow-inner"
+                                                style={{
+                                                    backgroundColor: `color-mix(in srgb, ${catColor} 18%, transparent)`,
+                                                    color: catColor,
+                                                }}
+                                            >
+                                                <DynamicIcon name={tag.icon || catIcon} className="size-3.5" />
                                             </div>
-
-                                            <div className="flex items-center gap-1">
-                                                <button type="button" onClick={() => startEditTag(tag)} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-surface-raised hover:text-text" title="Editar tag" aria-label={`Editar tag ${tag.name}`}>
+                                            <span className="font-medium text-text">{tag.name}</span>
+                                            <div className="flex items-center gap-0.5 ml-1 border-l border-white/10 pl-1">
+                                                <button type="button" onClick={() => startEditTag(tag)} className="rounded p-1 text-muted/60 transition-colors hover:bg-white/10 hover:text-text" title={`Editar tag ${tag.name}`} aria-label={`Editar tag ${tag.name}`}>
                                                     <Pencil className="size-3" aria-hidden />
                                                 </button>
                                                 <button
@@ -401,33 +380,106 @@ export function CategoryManager({ categories, specificTags = [], generalTags = [
                                                             name: tag.name,
                                                         })
                                                     }
-                                                    className="rounded-lg p-1.5 text-muted transition-colors hover:bg-danger/15 hover:text-danger-fg"
-                                                    title="Excluir tag"
+                                                    className="rounded p-1 text-muted/60 transition-colors hover:bg-danger/20 hover:text-danger-fg"
+                                                    title={`Excluir tag ${tag.name}`}
                                                     aria-label={`Excluir tag ${tag.name}`}
                                                 >
                                                     <Trash2 className="size-3" aria-hidden />
                                                 </button>
                                             </div>
                                         </div>
-                                    ))
-                                )}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
             </Modal>
 
+            {/* --- Modal Dedicada: Criar / Editar Tag Específica --- */}
+            <Modal open={tagModalOpen} onClose={() => setTagModalOpen(false)} zIndex="z-60" title={editingTagId ? `Editar Tag em "${activeCategory?.name || catName}"` : `Nova Tag em "${activeCategory?.name || catName}"`} description="Tags específicas herdam a cor da categoria e servem para detalhar seus gastos.">
+                <form onSubmit={handleSaveSpecificTag} className="flex flex-col gap-4">
+                    {tagModalError && (
+                        <div className="flex items-center gap-2 rounded-xl bg-danger/15 p-3 text-xs text-danger-fg">
+                            <AlertCircle className="size-4 shrink-0" aria-hidden />
+                            <span>{tagModalError}</span>
+                        </div>
+                    )}
+
+                    <CatalogPreview name={tagName} color={catColor} icon={tagIcon || catIcon} type="specificTag" parentCategoryName={activeCategory?.name || catName} />
+
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-text">Nome da Tag</label>
+                        <div className="flex items-center gap-3">
+                            <IconPicker value={tagIcon} onChange={setTagIcon} color={catColor} variant="avatar" placement="top" optional usedMap={tagIconUsage} showUsageText={false} />
+                            <input type="text" placeholder="Ex: Restaurante, Celular, Academia..." value={tagName} onChange={(e) => setTagName(e.target.value)} required maxLength={50} className="w-full rounded-xl bg-surface px-3.5 py-2.5 text-sm text-text outline-none focus:ring-1 focus:ring-violet" autoFocus />
+                        </div>
+                        {tagIcon && tagIconUsage?.[tagIcon] && tagIconUsage[tagIcon].length > 0 ? (
+                            <p className="flex items-center gap-1.5 pt-0.5 text-[11px] text-muted/70">
+                                <span className="size-1.5 shrink-0 rounded-full bg-muted/40" aria-hidden />
+                                <span>
+                                    Ícone também usado em: <span className="font-medium text-text/80">{tagIconUsage[tagIcon].join(", ")}</span>
+                                </span>
+                            </p>
+                        ) : null}
+                    </div>
+
+                    <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2 text-xs text-muted">
+                        <span className="size-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: catColor }} aria-hidden />
+                        <span>
+                            Cor vinculada à categoria: <strong className="font-semibold text-text">{activeCategory?.name || catName}</strong>
+                        </span>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                        <button type="button" disabled={loading} onClick={() => setTagModalOpen(false)} className="rounded-xl px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface hover:text-text">
+                            Cancelar
+                        </button>
+                        <button type="submit" disabled={loading || !tagName.trim()} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-4 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95 disabled:opacity-50">
+                            <Check className="size-4" aria-hidden />
+                            {loading ? "Salvando..." : editingTagId ? "Salvar Alterações" : "Criar Tag"}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
             {/* --- Confirm Delete Dialog --- */}
-            <ConfirmDialog
-                open={deleteDialog.open}
-                title={deleteDialog.type === "category" ? `Excluir categoria "${deleteDialog.name}"?` : `Excluir tag "${deleteDialog.name}"?`}
-                description={deleteDialog.type === "category" ? "Transações vinculadas a esta categoria impedirão a exclusão por integridade. Caso deseje remover, reclassifique as transações antes." : "A tag específica será removida. Transações já salvas manterão o histórico."}
-                confirmLabel="Excluir"
-                cancelLabel="Cancelar"
-                pending={loading}
-                onConfirm={handleConfirmDelete}
-                onClose={() => setDeleteDialog({ open: false, type: "category", id: "", name: "" })}
-            />
+            {(() => {
+                const targetCat = deleteDialog.type === "category" ? categories.find((c) => c.id === deleteDialog.id) : null;
+                const targetTag = deleteDialog.type === "specificTag" ? specificTags.find((t) => t.id === deleteDialog.id) : null;
+
+                return (
+                    <ConfirmDialog
+                        open={deleteDialog.open}
+                        title={deleteDialog.type === "category" ? `Excluir categoria "${deleteDialog.name}"?` : `Excluir tag "${deleteDialog.name}"?`}
+                        description={deleteDialog.type === "category" ? "Se existirem despesas vinculadas a esta categoria, a exclusão será bloqueada para proteger seu histórico financeiro. Caso queira remover, reclassifique as transações antes." : "Esta tag deixará de ser sugerida para novas despesas desta categoria. O histórico existente não será afetado."}
+                        itemPreview={
+                            deleteDialog.open && (targetCat || targetTag) ? (
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="flex size-9 shrink-0 items-center justify-center rounded-xl shadow-inner"
+                                        style={{
+                                            backgroundColor: `${targetCat?.color || targetTag?.color || activeCategory?.color || "#A78BFA"}20`,
+                                            color: targetCat?.color || targetTag?.color || activeCategory?.color || "#A78BFA",
+                                        }}
+                                    >
+                                        <DynamicIcon name={targetCat?.icon || targetTag?.icon || activeCategory?.icon || "Tag"} className="size-4.5" />
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="truncate text-sm font-semibold text-text">{targetCat?.name || targetTag?.name || deleteDialog.name}</span>
+                                        <span className="text-[11px] text-muted">{deleteDialog.type === "category" ? "Categoria principal" : `Tag vinculada a ${activeCategory?.name || "categoria"}`}</span>
+                                    </div>
+                                </div>
+                            ) : null
+                        }
+                        confirmLabel="Excluir"
+                        cancelLabel="Cancelar"
+                        pending={loading}
+                        onConfirm={handleConfirmDelete}
+                        onClose={() => setDeleteDialog({ open: false, type: "category", id: "", name: "" })}
+                    />
+                );
+            })()}
         </div>
     );
 }

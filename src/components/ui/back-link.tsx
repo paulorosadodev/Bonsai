@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { sanitizeReturnUrl } from "@/lib/navigation/return-url";
 
-export function BackLink({ fallbackHref = "/transactions" }: { fallbackHref?: string }) {
+export function BackLink({ fallbackHref = "/transacoes" }: { fallbackHref?: string }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const returnUrl = searchParams.get("returnUrl");

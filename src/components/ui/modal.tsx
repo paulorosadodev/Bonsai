@@ -12,11 +12,12 @@ interface ModalProps {
     description?: string;
     children: ReactNode;
     maxWidth?: string;
+    zIndex?: string;
 }
 
 const emptySubscribe = () => () => {};
 
-export function Modal({ open, onClose, title, description, children, maxWidth = "max-w-lg" }: ModalProps) {
+export function Modal({ open, onClose, title, description, children, maxWidth = "max-w-lg", zIndex = "z-50" }: ModalProps) {
     const mounted = useSyncExternalStore(
         emptySubscribe,
         () => true,
@@ -47,7 +48,7 @@ export function Modal({ open, onClose, title, description, children, maxWidth = 
     return createPortal(
         <AnimatePresence>
             {open && (
-                <div role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby={description ? "modal-description" : undefined} className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+                <div role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby={description ? "modal-description" : undefined} className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4 overflow-y-auto scrollbar-gutter-stable`}>
                     {/* Backdrop */}
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 bg-[#100b1e]/75 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 

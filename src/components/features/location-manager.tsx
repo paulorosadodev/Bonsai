@@ -99,8 +99,8 @@ export function LocationManager({ locations }: LocationManagerProps) {
                         <p className="text-xs text-muted">Destinos utilizados para transações do tipo Uber (ex: Casa, Trabalho, Aeroporto)</p>
                     </div>
                 </div>
-                <button type="button" onClick={openCreate} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-violet px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-orchid active:scale-95">
-                    <Plus className="size-4 shrink-0" aria-hidden />
+                <button type="button" onClick={openCreate} className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-violet/25 bg-violet/10 px-3 py-1.5 text-xs font-semibold text-orchid transition-all hover:border-violet/40 hover:bg-violet/20 hover:text-white active:scale-95">
+                    <Plus className="size-3.5 shrink-0" aria-hidden />
                     Nova Localidade
                 </button>
             </div>
@@ -112,26 +112,24 @@ export function LocationManager({ locations }: LocationManagerProps) {
                 </div>
             )}
 
-            {/* List of Locations */}
+            {/* List of Locations - Clean Minimalist List */}
             {locations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-2xl bg-surface-raised py-10 text-center">
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/10 py-10 text-center">
                     <MapPin className="mb-2 size-7 text-muted" aria-hidden />
                     <p className="text-sm font-medium text-text">Nenhuma localidade cadastrada</p>
                     <p className="text-xs text-muted">Cadastre destinos para associar às suas corridas de Uber</p>
                 </div>
             ) : (
-                <div className="flex flex-col gap-2 lg:max-h-64 lg:overflow-y-auto lg:pr-1.5">
+                <div className="flex flex-col divide-y divide-white/5">
                     {locations.map((loc) => (
-                        <div key={loc.id} className="group flex w-full items-center justify-between rounded-2xl bg-surface-raised p-3.5 transition-colors hover:bg-surface-raised/80">
-                            <div className="flex items-center gap-3">
-                                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-400 shadow-inner">
-                                    <MapPin className="size-4.5" aria-hidden />
-                                </div>
-                                <span className="text-sm font-semibold text-text">{loc.name}</span>
+                        <div key={loc.id} onClick={() => openEdit(loc)} className="group flex w-full cursor-pointer items-center justify-between py-2.5 px-2 -mx-2 rounded-xl transition-colors hover:bg-white/3 sm:px-3 sm:-mx-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <MapPin className="size-3.5 shrink-0 text-muted/60 transition-colors group-hover:text-sky-400" aria-hidden />
+                                <span className="truncate text-sm font-medium text-text transition-colors group-hover:text-white">{loc.name}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <button type="button" onClick={() => openEdit(loc)} className="rounded-xl p-2 text-muted transition-colors hover:bg-surface hover:text-text" title="Editar localidade">
-                                    <Pencil className="size-4" aria-hidden />
+                            <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <button type="button" onClick={() => openEdit(loc)} className="rounded-lg p-2 text-muted/50 transition-all hover:bg-surface-raised hover:text-text sm:opacity-0 sm:group-hover:opacity-100" title="Editar localidade" aria-label={`Editar localidade ${loc.name}`}>
+                                    <Pencil className="size-3.5" aria-hidden />
                                 </button>
                                 <button
                                     type="button"
@@ -139,10 +137,11 @@ export function LocationManager({ locations }: LocationManagerProps) {
                                         setMainError(null);
                                         setDeleteDialog({ open: true, id: loc.id, name: loc.name });
                                     }}
-                                    className="rounded-xl p-2 text-muted transition-colors hover:bg-surface hover:text-danger"
+                                    className="rounded-lg p-2 text-muted/50 transition-all hover:bg-danger/15 hover:text-danger-fg sm:opacity-0 sm:group-hover:opacity-100"
                                     title="Excluir localidade"
+                                    aria-label={`Excluir localidade ${loc.name}`}
                                 >
-                                    <Trash2 className="size-4" aria-hidden />
+                                    <Trash2 className="size-3.5" aria-hidden />
                                 </button>
                             </div>
                         </div>
@@ -162,7 +161,7 @@ export function LocationManager({ locations }: LocationManagerProps) {
 
                     <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold uppercase tracking-wider text-muted">Nome da Localidade</label>
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="ex: Casa, Trabalho, Aeroporto" maxLength={100} required autoFocus className="w-full rounded-xl bg-surface px-3 py-2 text-sm text-text placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-violet" />
+                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="ex: Casa, Trabalho, Aeroporto" maxLength={100} required autoFocus className="w-full rounded-xl bg-surface px-3.5 py-2.5 text-sm text-text outline-none focus:ring-1 focus:ring-violet" />
                     </div>
 
                     <div className="mt-2 flex justify-end gap-2">
@@ -178,7 +177,29 @@ export function LocationManager({ locations }: LocationManagerProps) {
             </Modal>
 
             {/* Confirm Delete Dialog */}
-            <ConfirmDialog open={deleteDialog.open} title="Excluir Localidade" description={`Tem certeza que deseja excluir a localidade "${deleteDialog.name}"? Se houver transações vinculadas, a exclusão será impedida.`} confirmLabel="Excluir" pending={loading} onConfirm={handleConfirmDelete} onClose={() => setDeleteDialog({ open: false, id: "", name: "" })} />
+            <ConfirmDialog
+                open={deleteDialog.open}
+                title={`Excluir localidade "${deleteDialog.name}"?`}
+                description="Esta localidade deixará de ser sugerida no preenchimento de corridas de Uber. Se já existirem despesas vinculadas, a exclusão será bloqueada por segurança."
+                itemPreview={
+                    deleteDialog.name ? (
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-400/15 text-sky-400">
+                                <MapPin className="size-4.5" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="truncate text-sm font-semibold text-text">{deleteDialog.name}</span>
+                                <span className="text-[11px] text-muted">Destino para corridas de Uber</span>
+                            </div>
+                        </div>
+                    ) : null
+                }
+                confirmLabel="Excluir"
+                cancelLabel="Cancelar"
+                pending={loading}
+                onConfirm={handleConfirmDelete}
+                onClose={() => setDeleteDialog({ open: false, id: "", name: "" })}
+            />
         </div>
     );
 }

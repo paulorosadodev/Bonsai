@@ -277,6 +277,8 @@ export function AnnualCategoryChart({ items, selectedCategoryId, totalYearCents 
         );
     }
 
+    const chartHeight = Math.max(224, rows.length * 28);
+
     return (
         <Card ref={cardRef} className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
@@ -311,7 +313,7 @@ export function AnnualCategoryChart({ items, selectedCategoryId, totalYearCents 
                 </button>
             </div>
 
-            <ChartViewport className="h-56 w-full" clickable>
+            <ChartViewport className="w-full" height={chartHeight} clickable>
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={rows}
@@ -332,7 +334,7 @@ export function AnnualCategoryChart({ items, selectedCategoryId, totalYearCents 
                         }}
                     >
                         <XAxis type="number" hide domain={[0, (dataMax: number) => (dataMax > 0 ? Math.round(dataMax * 1.25) : 1000)]} />
-                        <YAxis type="category" dataKey="label" width={92} tick={{ fill: "var(--muted)", fontSize: 12, cursor: "pointer" }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="label" width={92} interval={0} tick={{ fill: "var(--muted)", fontSize: 12, cursor: "pointer" }} axisLine={false} tickLine={false} />
                         <Tooltip
                             cursor={{ fill: "rgba(167, 139, 250, 0.12)" }}
                             content={({ active, payload }) => {
@@ -523,7 +525,7 @@ export function AnnualHistoryChart({ items, selectedYear }: { items: AnnualYearP
                             wrapperStyle={tooltipWrapperStyle}
                             contentStyle={tooltipContentStyle}
                         />
-                        <Bar dataKey="amountCents" radius={[8, 8, 0, 0]} isAnimationActive={!reduce} maxBarSize={48} cursor="pointer" label={renderAnnualHistoryBarLabel}>
+                        <Bar dataKey="amountCents" radius={[6, 6, 2, 2]} isAnimationActive={!reduce} maxBarSize={28} cursor="pointer" label={renderAnnualHistoryBarLabel} background={{ fill: "rgba(255, 255, 255, 0.03)", radius: 6 }}>
                             {rows.map((row) => {
                                 const isSelected = row.year === selectedYear;
                                 return (
@@ -531,15 +533,15 @@ export function AnnualHistoryChart({ items, selectedYear }: { items: AnnualYearP
                                         key={row.year}
                                         fill={isSelected ? "var(--orchid)" : "var(--surface-raised)"}
                                         cursor="pointer"
-                                        stroke={isSelected ? "var(--violet)" : "transparent"}
-                                        strokeWidth={1.5}
+                                        stroke="none"
+                                        strokeWidth={0}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleSelectYear(row.year);
                                         }}
                                         style={{
                                             transition: "filter 200ms ease, fill 200ms ease",
-                                            filter: isSelected ? "drop-shadow(0 0 8px rgba(216, 180, 254, 0.35))" : undefined,
+                                            filter: isSelected ? "drop-shadow(0 0 10px rgba(216, 180, 254, 0.45))" : undefined,
                                         }}
                                     />
                                 );

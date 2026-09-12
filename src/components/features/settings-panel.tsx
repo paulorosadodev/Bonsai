@@ -11,7 +11,7 @@ import { formatBrl } from "@/lib/domain/money";
 import type { CategoryOption, GeneralTagOption, SpecificTagOption } from "@/lib/domain/catalog";
 import type { LocationOption } from "@/lib/data/locations";
 import type { CycleSettings } from "@/lib/data/types";
-import { Download, FileSpreadsheet, ReceiptText, LogOut, PiggyBank, Wallet, CalendarClock, CalendarCheck, Check } from "lucide-react";
+import { Download, FileSpreadsheet, ReceiptText, LogOut, PiggyBank, Check } from "lucide-react";
 import { buttonClassName, Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
@@ -80,62 +80,17 @@ export function SettingsPanel({ settings, categories = [], generalTags = [], spe
                             })}
                             noValidate
                         >
-                            <Controller
-                                control={control}
-                                name="monthlyBudget"
-                                render={({ field }) => (
-                                    <CurrencyInput
-                                        id="monthlyBudget"
-                                        label={
-                                            <span className="flex items-center gap-1.5">
-                                                <Wallet className="size-3.5 text-violet" />
-                                                Teto de Gasto Mensal
-                                            </span>
-                                        }
-                                        hint="Válido a partir do mês corrente. Meses passados mantêm seus tetos históricos."
-                                        placeholder="Ex: R$ 3.000,00"
-                                        value={typeof field.value === "string" ? field.value : ""}
-                                        onChange={field.onChange}
-                                        onBlur={field.onBlur}
-                                        error={errors.monthlyBudget?.message}
-                                        className="bg-surface-raised"
-                                    />
-                                )}
-                            />
+                            <Controller control={control} name="monthlyBudget" render={({ field }) => <CurrencyInput id="monthlyBudget" label="Teto de Gasto Mensal" hint="Válido a partir do mês corrente. Meses passados mantêm seus tetos históricos." placeholder="Ex: R$ 3.000,00" value={typeof field.value === "string" ? field.value : ""} onChange={field.onChange} onBlur={field.onBlur} error={errors.monthlyBudget?.message} className="bg-surface-raised" />} />
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <Select
-                                    id="closingDay"
-                                    name="closingDay"
-                                    label={
-                                        <span className="flex items-center gap-1.5">
-                                            <CalendarClock className="size-3.5 text-orchid" />
-                                            Dia de Fechamento
-                                        </span>
-                                    }
-                                    error={errors.closingDay?.message}
-                                    value={String(closingDay)}
-                                    onChange={(val) => setValue("closingDay", Number(val), { shouldValidate: true })}
-                                >
+                                <Select id="closingDay" name="closingDay" label="Dia de Fechamento" error={errors.closingDay?.message} value={String(closingDay)} onChange={(val) => setValue("closingDay", Number(val), { shouldValidate: true })}>
                                     {days.map((day) => (
                                         <option key={day} value={String(day)}>
                                             {day}
                                         </option>
                                     ))}
                                 </Select>
-                                <Select
-                                    id="dueDay"
-                                    name="dueDay"
-                                    label={
-                                        <span className="flex items-center gap-1.5">
-                                            <CalendarCheck className="size-3.5 text-mint" />
-                                            Dia de Vencimento
-                                        </span>
-                                    }
-                                    error={errors.dueDay?.message}
-                                    value={String(dueDay)}
-                                    onChange={(val) => setValue("dueDay", Number(val), { shouldValidate: true })}
-                                >
+                                <Select id="dueDay" name="dueDay" label="Dia de Vencimento" error={errors.dueDay?.message} value={String(dueDay)} onChange={(val) => setValue("dueDay", Number(val), { shouldValidate: true })}>
                                     {days.map((day) => (
                                         <option key={day} value={String(day)}>
                                             {day}

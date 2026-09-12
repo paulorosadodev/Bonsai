@@ -116,27 +116,29 @@ export async function GET(request: NextRequest) {
         const reimbursedCents = hasReimbursement ? (row.reimbursed_amount_cents ?? grossCents) : 0;
         const netCents = Math.max(0, grossCents - reimbursedCents);
 
-        return [[
-            row.id,
-            row.transaction_id,
-            formatTransactionName(transaction.name, locName ? { name: locName } : null),
-            row.installment_number,
-            row.installment_count,
-            grossCents,
-            amountBrl(grossCents),
-            reimbursedCents,
-            amountBrl(reimbursedCents),
-            netCents,
-            amountBrl(netCents),
-            row.competence_date,
-            row.invoice_due_date,
-            transaction.purchase_date,
-            transaction.payment_method,
-            getCatName(transaction.category_id),
-            getSpecName(transaction.specific_tag_id),
-            serializeTags(getGenNames(transaction.general_tag_ids ?? [])),
-            locName,
-        ] as Array<string | number | null>];
+        return [
+            [
+                row.id,
+                row.transaction_id,
+                formatTransactionName(transaction.name, locName ? { name: locName } : null),
+                row.installment_number,
+                row.installment_count,
+                grossCents,
+                amountBrl(grossCents),
+                reimbursedCents,
+                amountBrl(reimbursedCents),
+                netCents,
+                amountBrl(netCents),
+                row.competence_date,
+                row.invoice_due_date,
+                transaction.purchase_date,
+                transaction.payment_method,
+                getCatName(transaction.category_id),
+                getSpecName(transaction.specific_tag_id),
+                serializeTags(getGenNames(transaction.general_tag_ids ?? [])),
+                locName,
+            ] as Array<string | number | null>,
+        ];
     });
 
     const recurrences = recurring.flatMap((occurrence) => {
@@ -158,27 +160,7 @@ export async function GET(request: NextRequest) {
         const reimbursedCents = hasReimbursement ? grossCents : 0;
         const netCents = hasReimbursement ? 0 : grossCents;
 
-        return [[
-            key,
-            occurrence.seriesId,
-            occurrence.name,
-            1,
-            1,
-            grossCents,
-            amountBrl(grossCents),
-            reimbursedCents,
-            amountBrl(reimbursedCents),
-            netCents,
-            amountBrl(netCents),
-            occurrence.entry.competenceDate,
-            occurrence.entry.invoiceDueDate,
-            occurrence.occurrenceDate,
-            occurrence.paymentMethod,
-            getCatName(occurrence.categoryId),
-            getSpecName(occurrence.specificTagId),
-            serializeTags(getGenNames(occurrence.generalTagIds ?? [])),
-            null,
-        ] as Array<string | number | null>];
+        return [[key, occurrence.seriesId, occurrence.name, 1, 1, grossCents, amountBrl(grossCents), reimbursedCents, amountBrl(reimbursedCents), netCents, amountBrl(netCents), occurrence.entry.competenceDate, occurrence.entry.invoiceDueDate, occurrence.occurrenceDate, occurrence.paymentMethod, getCatName(occurrence.categoryId), getSpecName(occurrence.specificTagId), serializeTags(getGenNames(occurrence.generalTagIds ?? [])), null] as Array<string | number | null>];
     });
 
     const rows = [...standalones, ...recurrences].sort((a, b) => String(a[11]).localeCompare(String(b[11])) || Number(a[3]) - Number(b[3]));
