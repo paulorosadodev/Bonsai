@@ -19,6 +19,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { CategoryManager } from "./category-manager";
 import { GeneralTagManager } from "./general-tag-manager";
 import { LocationManager } from "./location-manager";
+import { ChangePasswordCard } from "./change-password-card";
 
 const days = Array.from({ length: 28 }, (_, index) => index + 1);
 
@@ -132,8 +133,13 @@ export function SettingsPanel({ settings, categories = [], generalTags = [], spe
                     </Card>
                 </div>
 
-                {/* 6. Logout / Sessão */}
+                {/* 6. Segurança / Alterar Senha */}
                 <div className="order-6 lg:order-0">
+                    <ChangePasswordCard />
+                </div>
+
+                {/* 7. Logout / Sessão */}
+                <div className="order-7 lg:order-0">
                     <Card className="flex items-center justify-between gap-3 p-4">
                         <div className="flex items-center gap-2.5">
                             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-danger/15 text-danger">

@@ -40,6 +40,23 @@ export const loginSchema = z.object({
     password: z.string({ message: "Informe a senha" }).min(1, "Informe a senha").max(128, "A senha deve ter no máximo 128 caracteres"),
 });
 
+export const changePasswordSchema = z
+    .object({
+        currentPassword: z.string({ message: "Informe a senha atual" }).min(1, "Informe a senha atual"),
+        newPassword: z.string({ message: "Informe a nova senha" }).min(8, "A nova senha deve ter no mínimo 8 caracteres").max(128, "A nova senha deve ter no máximo 128 caracteres"),
+        confirmPassword: z.string({ message: "Confirme a nova senha" }).min(1, "Confirme a nova senha"),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+        message: "As senhas não coincidem",
+        path: ["confirmPassword"],
+    })
+    .refine((data) => data.newPassword !== data.currentPassword, {
+        message: "A nova senha deve ser diferente da senha atual",
+        path: ["newPassword"],
+    });
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 const optionalCivilDateSchema = z
     .union([civilDateSchema, z.literal("")])
     .nullable()
