@@ -1,7 +1,5 @@
 ![Bonsai Banner](./src/assets/banner.png)
 
-# Bonsai — Controle Financeiro Pessoal
-
 ## 📌 Sobre o Projeto
 
 O **Bonsai** nasceu como um **projeto estritamente pessoal**. Desenvolvi essa aplicação para resolver minhas próprias dores no dia a dia: acompanhar despesas de forma imediata pelo celular, saber com precisão cirúrgica em qual fatura do cartão uma compra vai cair, controlar assinaturas recorrentes sem poluir a base de dados com previsões artificiais e visualizar a evolução do orçamento mensal e anual — tudo isso **sem abrir planilhas lentas** e **sem a burocracia, anúncios ou conexões bancárias instáveis** de aplicativos comerciais tradicionais.
